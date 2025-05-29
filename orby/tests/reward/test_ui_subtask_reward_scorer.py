@@ -51,11 +51,11 @@ class TestUISubtaskRewardScorer:
         result = self.scorer._score_reward_model(prediction, ground_truth)
 
         assert np.isclose(result["score"], 1.0)
-        assert np.isclose(result["details"]["format"], 1.0)
-        assert result["details"]["reasoning"] == 1
-        assert result["details"]["should_end"] == 1
-        assert result["details"]["goal_achieved"] == 1
-        assert result["details"]["answer"] == 1
+        assert np.isclose(result["format"], 1.0)
+        assert result["reasoning"] == 1
+        assert result["should_end"] == 1
+        assert result["goal_achieved"] == 1
+        assert result["answer"] == 1
 
     def test_score_reward_model_should_end_false(self):
         """Test reward model scoring when should_end is false."""
@@ -66,7 +66,7 @@ class TestUISubtaskRewardScorer:
 
         # Answer should be 0 because predicted answer ("No answer yet") doesn't match empty string
         # (gt answer is set to empty when should_end is false)
-        assert result["details"]["answer"] == 0
+        assert result["answer"] == 0
 
     def test_score_reward_model_missing_fields(self):
         """Test reward model scoring with missing fields."""
@@ -76,7 +76,7 @@ class TestUISubtaskRewardScorer:
         result = self.scorer._score_reward_model(prediction, ground_truth)
 
         # Format score should be 2/4 = 0.5 (2 fields present out of 4)
-        assert np.isclose(result["details"]["format"], 0.5)
+        assert np.isclose(result["format"], 0.5)
 
     def test_calculate_coordinates_score_both_none(self):
         """Test coordinates scoring when both are None."""
@@ -158,11 +158,11 @@ class TestUISubtaskRewardScorer:
         result = self.scorer._score_executor(prediction, ground_truth)
 
         assert np.isclose(result["score"], 1.0)
-        assert np.isclose(result["details"]["format"], 1.0)
-        assert result["details"]["thinking"] == 1
-        assert result["details"]["action_type"] == 1
-        assert np.isclose(result["details"]["coordinates"], 1.0)
-        assert np.isclose(result["details"]["action_args"], 1.0)
+        assert np.isclose(result["format"], 1.0)
+        assert result["thinking"] == 1
+        assert result["action_type"] == 1
+        assert np.isclose(result["coordinates"], 1.0)
+        assert np.isclose(result["action_args"], 1.0)
 
     def test_score_executor_invalid_action(self):
         """Test executor scoring with invalid action."""
@@ -173,10 +173,12 @@ class TestUISubtaskRewardScorer:
             result = self.scorer._score_executor(prediction, ground_truth)
 
         # Should only get format and thinking scores
-        assert result["details"]["action_in_action_space"] == 0
-        assert result["details"]["action_type"] == 0
-        assert result["details"]["coordinates"] == 0
-        assert result["details"]["action_args"] == 0
+        assert result["score"] > 0
+        assert result["format"] > 0
+        assert result["thinking"] > 0
+        assert result["action_type"] == 0
+        assert result["coordinates"] == 0
+        assert result["action_args"] == 0
 
     def test_score_reward_model_type(self):
         """Test score method with reward model type ground truth."""
@@ -184,10 +186,13 @@ class TestUISubtaskRewardScorer:
 
         prediction = "<reasoning>Test reasoning</reasoning><should_end>true</should_end><goal_achieved>true</goal_achieved><answer>Test answer</answer>"
 
-        with patch.object(self.scorer, "_score_reward_model") as mock_score:
-            mock_score.return_value = {"score": 1.0, "details": {}}
-            self.scorer.score(prediction, ground_truth)
-            mock_score.assert_called_once_with(prediction, ground_truth)
+        result = self.scorer.score(prediction, ground_truth)
+        assert np.isclose(result["score"], 1.0)
+        assert np.isclose(result["format"], 1.0)
+        assert result["reasoning"] == 1
+        assert result["should_end"] == 1
+        assert result["goal_achieved"] == 1
+        assert result["answer"] == 1
 
     def test_score_executor_type(self):
         """Test score method with executor type ground truth."""
@@ -195,10 +200,13 @@ class TestUISubtaskRewardScorer:
 
         prediction = "<thinking>Test thinking</thinking><action>click(100, 200)</action>"
 
-        with patch.object(self.scorer, "_score_executor") as mock_score:
-            mock_score.return_value = {"score": 1.0, "details": {}}
-            self.scorer.score(prediction, ground_truth)
-            mock_score.assert_called_once_with(prediction, ground_truth)
+        result = self.scorer.score(prediction, ground_truth)
+        assert np.isclose(result["score"], 1.0)
+        assert np.isclose(result["format"], 1.0)
+        assert result["thinking"] == 1
+        assert result["action_type"] == 1
+        assert np.isclose(result["coordinates"], 1.0)
+        assert np.isclose(result["action_args"], 1.0)
 
     def test_score_invalid_ground_truth(self):
         """Test score method with invalid ground truth."""
@@ -217,7 +225,6 @@ class TestUISubtaskRewardScorer:
         result = compute_score(prediction, ground_truth)
 
         assert "score" in result
-        assert "details" in result
         assert 0 <= result["score"] <= 1
 
     def test_score_reward_model_with_none_values(self):
@@ -228,8 +235,8 @@ class TestUISubtaskRewardScorer:
         result = self.scorer._score_reward_model(prediction, ground_truth)
 
         # All scores should be 0
-        assert np.isclose(result["details"]["format"], 0.0)
-        assert result["details"]["reasoning"] == 0
-        assert result["details"]["should_end"] == 0
-        assert result["details"]["goal_achieved"] == 0
-        assert result["details"]["answer"] == 0
+        assert np.isclose(result["format"], 0.0)
+        assert result["reasoning"] == 0
+        assert result["should_end"] == 0
+        assert result["goal_achieved"] == 0
+        assert result["answer"] == 0

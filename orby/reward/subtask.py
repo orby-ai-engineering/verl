@@ -6,8 +6,7 @@ from difflib import SequenceMatcher
 
 import numpy as np
 
-from orby.subtask.utils.action_parsing_utils import extract_content_by_tags
-from orby.subtask.utils.action_space_utils import get_action_info
+from orby.utils.action_utils import get_action_info, extract_content_by_tags
 
 
 class UISubtaskRewardScorer:
@@ -210,6 +209,7 @@ class UISubtaskRewardScorer:
 
         thinking_score = int(self._check_text_similarity(pred_dict["thinking"], gt_dict["thinking"]))
 
+        parser_error = False
         try:
             pred_action_info = get_action_info(pred_dict["action"])
             gt_action_info = get_action_info(gt_dict["action"])
