@@ -19,6 +19,7 @@ command: |
   pip install s3fs
   pip install parquet-tools
   pip install sgl-kernel
+  pip install boto3
   # Download model.
   # python3 -c "import transformers; transformers.pipeline(model='Qwen/Qwen2.5-VL-7B-Instruct')"
   # Install verl lib: https://verl.readthedocs.io/en/latest/start/install.html
@@ -31,7 +32,7 @@ command: |
   export GLOO_SOCKET_IFNAME=$INTERFACE
   
   # Start ray and training job
-  sh scripts/run_ray.sh 
+  sh orby/scripts/run_ray.sh 
   # hacky way to create a distribution barrier
   sleep 120
   ray status
