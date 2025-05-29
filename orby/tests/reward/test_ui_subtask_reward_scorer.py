@@ -19,7 +19,12 @@ class TestUISubtaskRewardScorer:
 
     def test_init(self):
         """Test that the scorer initializes with correct weights and tags."""
-        assert self.scorer.reward_model_tags == ["reasoning", "should_end", "goal_achieved", "answer"]
+        assert self.scorer.reward_model_tags == [
+            "reasoning",
+            "should_end",
+            "goal_achieved",
+            "answer",
+        ]
         assert self.scorer.executor_tags == ["thinking", "action"]
 
     def test_check_text_similarity_identical(self):
@@ -36,17 +41,29 @@ class TestUISubtaskRewardScorer:
 
     def test_check_text_similarity_low_similarity(self):
         """Test text similarity with low similarity strings."""
-        assert self.scorer._check_text_similarity("hello world", "completely different") is False
+        assert (
+            self.scorer._check_text_similarity("hello world", "completely different")
+            is False
+        )
 
     def test_check_text_similarity_custom_threshold(self):
         """Test text similarity with custom threshold."""
-        assert self.scorer._check_text_similarity("hello", "helo", threshold=0.6) is True
-        assert self.scorer._check_text_similarity("hello", "xyz", threshold=0.6) is False
+        assert (
+            self.scorer._check_text_similarity("hello", "helo", threshold=0.6) is True
+        )
+        assert (
+            self.scorer._check_text_similarity("hello", "xyz", threshold=0.6) is False
+        )
 
     def test_score_reward_model_perfect_match(self):
         """Test reward model scoring with perfect match."""
         prediction = "<reasoning>This is the reasoning</reasoning><should_end>true</should_end><goal_achieved>true</goal_achieved><answer>The answer</answer>"
-        ground_truth = {"reasoning": "This is the reasoning", "should_end": "true", "goal_achieved": "true", "answer": "The answer"}
+        ground_truth = {
+            "reasoning": "This is the reasoning",
+            "should_end": "true",
+            "goal_achieved": "true",
+            "answer": "The answer",
+        }
 
         result = self.scorer._score_reward_model(prediction, ground_truth)
 
@@ -60,7 +77,12 @@ class TestUISubtaskRewardScorer:
     def test_score_reward_model_should_end_false(self):
         """Test reward model scoring when should_end is false."""
         prediction = "<reasoning>Still working on it</reasoning><should_end>false</should_end><goal_achieved>false</goal_achieved><answer>No answer yet</answer>"
-        ground_truth = {"reasoning": "Still working on it", "should_end": "false", "goal_achieved": "false", "answer": "Should be ignored"}
+        ground_truth = {
+            "reasoning": "Still working on it",
+            "should_end": "false",
+            "goal_achieved": "false",
+            "answer": "Should be ignored",
+        }
 
         result = self.scorer._score_reward_model(prediction, ground_truth)
 
@@ -71,7 +93,12 @@ class TestUISubtaskRewardScorer:
     def test_score_reward_model_missing_fields(self):
         """Test reward model scoring with missing fields."""
         prediction = "<reasoning>This is the reasoning</reasoning><goal_achieved>true</goal_achieved>"
-        ground_truth = {"reasoning": "This is the reasoning", "should_end": "true", "goal_achieved": "true", "answer": "The answer"}
+        ground_truth = {
+            "reasoning": "This is the reasoning",
+            "should_end": "true",
+            "goal_achieved": "true",
+            "answer": "The answer",
+        }
 
         result = self.scorer._score_reward_model(prediction, ground_truth)
 
@@ -153,7 +180,10 @@ class TestUISubtaskRewardScorer:
     def test_score_executor_perfect_match(self):
         """Test executor scoring with perfect match."""
         prediction = "<thinking>I need to click the button</thinking><action>click(100, 200, button='left', double=False)</action>"
-        ground_truth = {"thinking": "I need to click the button", "action": "click(100, 200, button='left', double=False)"}
+        ground_truth = {
+            "thinking": "I need to click the button",
+            "action": "click(100, 200, button='left', double=False)",
+        }
 
         result = self.scorer._score_executor(prediction, ground_truth)
 
@@ -167,7 +197,10 @@ class TestUISubtaskRewardScorer:
     def test_score_executor_invalid_action(self):
         """Test executor scoring with invalid action."""
         prediction = "<thinking>I need to do something</thinking><action>invalid_action()</action>"
-        ground_truth = {"thinking": "I need to do something", "action": "click(100, 200)"}
+        ground_truth = {
+            "thinking": "I need to do something",
+            "action": "click(100, 200)",
+        }
 
         with patch("builtins.print"):  # Mock print to avoid output during tests
             result = self.scorer._score_executor(prediction, ground_truth)
@@ -182,7 +215,12 @@ class TestUISubtaskRewardScorer:
 
     def test_score_reward_model_type(self):
         """Test score method with reward model type ground truth."""
-        ground_truth = {"reasoning": "Test reasoning", "should_end": "true", "goal_achieved": "true", "answer": "Test answer"}
+        ground_truth = {
+            "reasoning": "Test reasoning",
+            "should_end": "true",
+            "goal_achieved": "true",
+            "answer": "Test answer",
+        }
 
         prediction = "<reasoning>Test reasoning</reasoning><should_end>true</should_end><goal_achieved>true</goal_achieved><answer>Test answer</answer>"
 
@@ -198,7 +236,9 @@ class TestUISubtaskRewardScorer:
         """Test score method with executor type ground truth."""
         ground_truth = {"thinking": "Test thinking", "action": "click(100, 200)"}
 
-        prediction = "<thinking>Test thinking</thinking><action>click(100, 200)</action>"
+        prediction = (
+            "<thinking>Test thinking</thinking><action>click(100, 200)</action>"
+        )
 
         result = self.scorer.score(prediction, ground_truth)
         assert np.isclose(result["score"], 1.0)
@@ -220,7 +260,12 @@ class TestUISubtaskRewardScorer:
     def test_compute_score_function(self):
         """Test the standalone compute_score function."""
         prediction = "<reasoning>Test</reasoning><should_end>true</should_end><goal_achieved>true</goal_achieved><answer>Test</answer>"
-        ground_truth = {"reasoning": "Test", "should_end": "true", "goal_achieved": "true", "answer": "Test"}
+        ground_truth = {
+            "reasoning": "Test",
+            "should_end": "true",
+            "goal_achieved": "true",
+            "answer": "Test",
+        }
 
         result = compute_score(prediction, ground_truth)
 
@@ -230,7 +275,12 @@ class TestUISubtaskRewardScorer:
     def test_score_reward_model_with_none_values(self):
         """Test reward model scoring when extract returns None values."""
         prediction = "No valid tags"
-        ground_truth = {"reasoning": "Expected reasoning", "should_end": "true", "goal_achieved": "true", "answer": "Expected answer"}
+        ground_truth = {
+            "reasoning": "Expected reasoning",
+            "should_end": "true",
+            "goal_achieved": "true",
+            "answer": "Expected answer",
+        }
 
         result = self.scorer._score_reward_model(prediction, ground_truth)
 

@@ -31,7 +31,9 @@ class UISubtaskRewardScorer:
         self.reward_model_tags = ["reasoning", "should_end", "goal_achieved", "answer"]
         self.executor_tags = ["thinking", "action"]
 
-    def _check_text_similarity(self, pred_content: str, gt_content: str, threshold: float = 0.8) -> bool:
+    def _check_text_similarity(
+        self, pred_content: str, gt_content: str, threshold: float = 0.8
+    ) -> bool:
         """Check if predicted content matches ground truth content using text similarity.
 
         Args:
@@ -42,7 +44,9 @@ class UISubtaskRewardScorer:
         Returns:
             True if similarity score is above threshold
         """
-        similarity = SequenceMatcher(None, pred_content.lower(), gt_content.lower()).ratio()
+        similarity = SequenceMatcher(
+            None, pred_content.lower(), gt_content.lower()
+        ).ratio()
         return similarity >= threshold
 
     def _score_reward_model(self, prediction: str, ground_truth: dict) -> dict:
@@ -65,7 +69,9 @@ class UISubtaskRewardScorer:
         pred_dict = extract_content_by_tags(prediction, self.reward_model_tags)
 
         # check format
-        format_score = sum(1 for value in pred_dict.values() if value is not None) / len(self.reward_model_tags)
+        format_score = sum(
+            1 for value in pred_dict.values() if value is not None
+        ) / len(self.reward_model_tags)
 
         # Convert everything to string, even None
         pred_dict = {key: str(value) for key, value in pred_dict.items()}
@@ -81,7 +87,11 @@ class UISubtaskRewardScorer:
             gt_dict["answer"] = ""
 
         try:
-            reasoning_score = int(self._check_text_similarity(pred_dict["reasoning"], gt_dict["reasoning"]))
+            reasoning_score = int(
+                self._check_text_similarity(
+                    pred_dict["reasoning"], gt_dict["reasoning"]
+                )
+            )
         except Exception as e:
             print(f"Error calculating reasoning score: {e}")
             reasoning_score = 0
@@ -91,12 +101,16 @@ class UISubtaskRewardScorer:
             print(f"Error calculating should end score: {e}")
             should_end_score = 0
         try:
-            goal_achieved_score = int(pred_dict["goal_achieved"] == gt_dict["goal_achieved"])
+            goal_achieved_score = int(
+                pred_dict["goal_achieved"] == gt_dict["goal_achieved"]
+            )
         except Exception as e:
             print(f"Error calculating goal achieved score: {e}")
             goal_achieved_score = 0
         try:
-            answer_score = int(self._check_text_similarity(pred_dict["answer"], gt_dict["answer"]))
+            answer_score = int(
+                self._check_text_similarity(pred_dict["answer"], gt_dict["answer"])
+            )
         except Exception as e:
             print(f"Error calculating answer score: {e}")
             answer_score = 0
@@ -119,7 +133,11 @@ class UISubtaskRewardScorer:
 
         return details
 
-    def _calculate_coordinates_score(self, pred_coordinates: list[tuple[float, float]] | None, gt_coordinates: list[tuple[float, float]] | None) -> float:
+    def _calculate_coordinates_score(
+        self,
+        pred_coordinates: list[tuple[float, float]] | None,
+        gt_coordinates: list[tuple[float, float]] | None,
+    ) -> float:
         """
         Calculate the score for the coordinates of the action.
         We use a Gaussian similarity score with a sigma of 2 for all coordinates.
@@ -147,6 +165,7 @@ class UISubtaskRewardScorer:
         scores = []
         for pred_coord, gt_coord in zip(pred_coordinates, gt_coordinates):
             # Use a Gaussian similarity score with a sigma of 2
+            # TODO: if we can get the bounding box information, investigate which reward is better
             sigma = 2
             pred = np.asarray(pred_coord)
             truth = np.asarray(gt_coord)
@@ -156,7 +175,9 @@ class UISubtaskRewardScorer:
 
         return np.mean(scores)
 
-    def _calculate_action_args_score(self, pred_args: dict[str, str] | None, gt_args: dict[str, str] | None) -> float:
+    def _calculate_action_args_score(
+        self, pred_args: dict[str, str] | None, gt_args: dict[str, str] | None
+    ) -> float:
         """
         Calculate the score for the action arguments.
         We treat every argument as a string and use the textual similarity score.
@@ -201,19 +222,25 @@ class UISubtaskRewardScorer:
                 - other individual check scores
         """
         pred_dict = extract_content_by_tags(prediction, self.executor_tags)
-        format_score = sum(1 for value in pred_dict.values() if value is not None) / len(self.executor_tags)
+        format_score = sum(
+            1 for value in pred_dict.values() if value is not None
+        ) / len(self.executor_tags)
 
         # Convert everything to string, even None
         pred_dict = {key: str(value) for key, value in pred_dict.items()}
         gt_dict = {key: str(value) for key, value in ground_truth.items()}
 
-        thinking_score = int(self._check_text_similarity(pred_dict["thinking"], gt_dict["thinking"]))
+        thinking_score = int(
+            self._check_text_similarity(pred_dict["thinking"], gt_dict["thinking"])
+        )
 
         parser_error = False
         try:
             pred_action_info = get_action_info(pred_dict["action"])
             gt_action_info = get_action_info(gt_dict["action"])
-            action_type_score = int(pred_action_info["action_type"] == gt_action_info["action_type"])
+            action_type_score = int(
+                pred_action_info["action_type"] == gt_action_info["action_type"]
+            )
         except Exception as e:
             # If the action is not in the action space, we should penalize the model and exit early
             print(f"Error with action type parsing: {e}")
@@ -224,15 +251,25 @@ class UISubtaskRewardScorer:
         action_args_score = 0
         if not parser_error:
             try:
-                coordinates_score = self._calculate_coordinates_score(pred_action_info["coordinates"], gt_action_info["coordinates"])
+                coordinates_score = self._calculate_coordinates_score(
+                    pred_action_info["coordinates"], gt_action_info["coordinates"]
+                )
             except Exception as e:
                 print(f"Error calculating coordinates score: {e}")
             try:
-                action_args_score = self._calculate_action_args_score(pred_action_info["args"], gt_action_info["args"])
+                action_args_score = self._calculate_action_args_score(
+                    pred_action_info["args"], gt_action_info["args"]
+                )
             except Exception as e:
                 print(f"Error calculating action args score: {e}")
 
-        score = format_score * self.executor_weights["format"] + thinking_score * self.executor_weights["thinking"] + action_type_score * self.executor_weights["action_type"] + coordinates_score * self.executor_weights["coordinates"] + action_args_score * self.executor_weights["action_args"]
+        score = (
+            format_score * self.executor_weights["format"]
+            + thinking_score * self.executor_weights["thinking"]
+            + action_type_score * self.executor_weights["action_type"]
+            + coordinates_score * self.executor_weights["coordinates"]
+            + action_args_score * self.executor_weights["action_args"]
+        )
         details = {
             "score": score,
             "format": format_score,
@@ -266,7 +303,12 @@ class UISubtaskRewardScorer:
                 - other individual check scores
         """
         gt_keys = ground_truth.keys()
-        if "reasoning" in gt_keys and "should_end" in gt_keys and "goal_achieved" in gt_keys and "answer" in gt_keys:
+        if (
+            "reasoning" in gt_keys
+            and "should_end" in gt_keys
+            and "goal_achieved" in gt_keys
+            and "answer" in gt_keys
+        ):
             result = self._score_reward_model(prediction, ground_truth)
         elif "thinking" in gt_keys and "action" in gt_keys:
             result = self._score_executor(prediction, ground_truth)

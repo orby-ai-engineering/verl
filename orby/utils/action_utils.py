@@ -75,7 +75,9 @@ def get_action_info(action: str) -> ActionInfo:
     return eval(action)
 
 
-def click(x: float, y: float, button: Literal["left", "right"] = "left", double: bool = False) -> ActionInfo:
+def click(
+    x: float, y: float, button: Literal["left", "right"] = "left", double: bool = False
+) -> ActionInfo:
     return ActionInfo(
         action_type="click",
         coordinates=[(x, y)],
