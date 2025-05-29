@@ -26,6 +26,8 @@ def process_image(image: Union[dict, Image.Image]) -> Image.Image:
 
     if "bytes" in image:
         assert "image" not in image, "Cannot have both `bytes` and `image`"
+        # NOTE: edited main code of VERL to fix downstream issue in fetch_image
+        # "binary object does not have `startswith` method"
         image["image"] = Image.open(BytesIO(image["bytes"])).convert("RGB")
 
     return fetch_image(image)
