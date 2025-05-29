@@ -5,7 +5,7 @@ REWARD_FN=reward_func
 OUTPUT_FILE=test-output-subtask-1.parquet
 
 # Generation
-python3 -m verl.trainer.main_generation \
+python3 -m orby.trainer.main_generation \
     trainer.nnodes=1 \
     trainer.n_gpus_per_node=8 \
     data.path=$DATA_PATH \

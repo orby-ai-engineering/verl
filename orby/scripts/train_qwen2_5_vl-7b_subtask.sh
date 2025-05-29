@@ -18,7 +18,7 @@ echo "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu"
 echo "actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu"
 echo "actor_rollout_ref.rollout.n"
 
-python3 -m verl.trainer.main_ppo \
+python3 -m orby.trainer.main_ppo \
     custom_reward_function.path=$REWARD_FILE \
     custom_reward_function.name=$REWARD_FN \
     algorithm.adv_estimator=grpo \
