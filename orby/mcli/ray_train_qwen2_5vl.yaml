@@ -80,7 +80,7 @@ command: |
             trainer.logger=['console','wandb'] \
             trainer.project_name='verl_grpo_example_geo3k' \
             trainer.experiment_name='qwen2_5_vl_7b_function_rm' \
-            trainer.save_freq=20 \
+            trainer.save_freq=1 \
             trainer.test_freq=5 \
             trainer.s3_checkpoint_dir=s3://orby-osu-va/verl-checkpoints/geo3k/qwen2_5_vl_7b_function_rm \
             trainer.total_epochs=15 $@ | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
