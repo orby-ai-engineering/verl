@@ -223,38 +223,38 @@ def file_upload(bucket: str, src_path: str, dest_path: str) -> None:
     _get_s3_client().upload_file(src_path, bucket, dest_path)
 
 
-def download_from_s3(s3_path: str, local_dir: Optional[str] = None) -> str:
+def download_from_s3(s3_path: str, source_dir: Optional[str] = None) -> str:
     """
     Download a file or directory from S3 to a local directory.
 
     Args:
         s3_path: S3 URI in the format s3://bucket-name/path
-        local_dir: Local directory to download to. If None, creates a temporary directory.
+        source_dir: Local directory to download to. If None, creates a temporary directory.
 
     Returns:
         The local path where the file(s) were downloaded.
     """
-    if local_dir is None:
-        local_dir = tempfile.mkdtemp()
+    if source_dir is None:
+        source_dir = tempfile.mkdtemp()
 
     bucket, remote_path, is_dir = parse_uri(s3_path, is_dir=None)
 
     if is_dir:
         # Create a directory for files
-        os.makedirs(local_dir, exist_ok=True)
+        os.makedirs(source_dir, exist_ok=True)
 
         # List files in the S3 directory
         files = list_objects(bucket, remote_path)
 
         for file in files:
             file_remote_path = f"{remote_path}{file}"
-            file_local_path = os.path.join(local_dir, file)
+            file_local_path = os.path.join(source_dir, file)
             os.makedirs(os.path.dirname(file_local_path), exist_ok=True)
             file_download(bucket, file_remote_path, file_local_path)
     else:
         # Single file download
         filename = os.path.basename(remote_path)
-        local_path = os.path.join(local_dir, filename)
+        local_path = os.path.join(source_dir, filename)
         file_download(bucket, remote_path, local_path)
 
-    return local_dir
+    return source_dir
