@@ -98,6 +98,7 @@ def copy_to_local(src: str, cache_dir=None, filelock='.file.lock', verbose=False
         cache_dir (str, optional): Local directory for cached files. Uses system tempdir if None
         filelock (str): Base name for file lock. Defaults to ".file.lock"
         verbose (bool): Enable copy operation logging. Defaults to False
+        recursive (bool, optional): Whether to recursively copy directories. Should be set to True for directory paths. Defaults to None
         always_recopy (bool): Force fresh copy ignoring cache. Defaults to False
 
     Returns:
