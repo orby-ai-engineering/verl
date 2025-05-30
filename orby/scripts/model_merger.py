@@ -39,17 +39,18 @@ https://verl.readthedocs.io/en/latest/advance/checkpoint.html#convert-fsdp-and-m
 import argparse
 import os
 import re
+import shutil
 import tempfile
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any, Union
+from typing import Optional, Union
 
 import numpy as np
 import torch
 from accelerate import init_empty_weights
-from safetensors.torch import load_file
+from safetensors.torch import load_file, save_file
 from torch.distributed._tensor import Placement, Shard
 from transformers import (
     AutoConfig,
@@ -69,14 +70,27 @@ except ImportError:
 from tqdm import tqdm
 
 from verl.utils import hf_processor, hf_tokenizer
-# Import S3 utilities
-from verl.utils.s3_io import download_from_s3
+from verl.utils.s3_io import download_from_s3, parse_uri
 
-
+# Helper functions for S3 path handling
 def is_s3_path(path: str) -> bool:
     """Check if a path is an S3 path."""
     return path.startswith("s3://")
 
+def get_local_path(path: str, temp_dir: Optional[str] = None) -> str:
+    """
+    If path is an S3 path, download it to a local directory and return the local path.
+    Otherwise, return the original path.
+    """
+    if is_s3_path(path):
+        return download_from_s3(path, source_dir=temp_dir)
+    return path
+
+def ensure_local_dir(path: str) -> str:
+    """Ensure the directory exists locally if it's not an S3 path."""
+    if not is_s3_path(path):
+        os.makedirs(path, exist_ok=True)
+    return path
 
 @dataclass
 class ModelMergerConfig:
@@ -92,10 +106,6 @@ class ModelMergerConfig:
     is_value_model: bool = False
     hf_model_path: Optional[str] = None
     hf_upload: bool = field(init=False)
-    is_s3_local_dir: bool = field(init=False, default=False)
-    is_s3_target_dir: bool = field(init=False, default=False)
-    is_s3_test_hf_dir: bool = field(init=False, default=False)
-    local_cache_dir: Optional[str] = field(init=False, default=None)
 
     def __post_init__(self):
         self.hf_upload = self.operation == "merge" and bool(self.hf_upload_path)
@@ -103,39 +113,44 @@ class ModelMergerConfig:
             self.target_dir = None
             self.hf_upload_path = None
             self.private = False
-            
-        # Check if paths are S3 paths
-        self.is_s3_local_dir = is_s3_path(self.local_dir)
-        if self.target_dir:
-            self.is_s3_target_dir = is_s3_path(self.target_dir)
-        if self.test_hf_dir:
-            self.is_s3_test_hf_dir = is_s3_path(self.test_hf_dir)
-            
-        # Create local cache directory for S3 files if needed
-        if self.is_s3_local_dir or self.is_s3_target_dir or self.is_s3_test_hf_dir:
-            self.local_cache_dir = tempfile.mkdtemp()
-            
-        # Handle S3 paths for local_dir (download to local cache)
-        if self.is_s3_local_dir:
-            self.original_local_dir = self.local_dir
-            self.local_dir = download_from_s3(self.local_dir, source_dir=os.path.join(self.local_cache_dir, "local_dir"))
-            
-        # Handle S3 paths for test_hf_dir
-        if self.is_s3_test_hf_dir and self.test_hf_dir:
-            self.original_test_hf_dir = self.test_hf_dir
-            self.test_hf_dir = download_from_s3(self.test_hf_dir, source_dir=os.path.join(self.local_cache_dir, "test_hf_dir"))
 
 
 class BaseModelMerger(ABC):
     def __init__(self, config: ModelMergerConfig):
         self.config = config
         self.hf_model_config_path = config.hf_model_config_path
+        self.local_dir = None  # Will be set to a local path if local_dir is an S3 path
+        self.s3_local_dir = None  # Temporary local directory for S3 downloads
+        self.s3_target_dir = None  # Temporary local directory for S3 uploads
 
         if config.hf_model_path:
             print("Warning: --hf_model_path is deprecated and will be removed in a future version. Currently verl will save huggingface model configuration files into checkpoint directories. Therefore, there is no need to provide --hf_model_path. ")
             self.hf_model_config_path = config.hf_model_path
 
+        # Setup local paths if S3 paths are provided
+        if is_s3_path(config.local_dir):
+            self.s3_local_dir = tempfile.mkdtemp()
+            self.local_dir = download_from_s3(config.local_dir, source_dir=self.s3_local_dir)
+        else:
+            self.local_dir = config.local_dir
+
+        # Create a local temporary directory if target_dir is an S3 path
+        if config.target_dir and is_s3_path(config.target_dir):
+            self.s3_target_dir = tempfile.mkdtemp()
+            self.target_dir = self.s3_target_dir
+        else:
+            self.target_dir = config.target_dir
+            if self.target_dir:
+                ensure_local_dir(self.target_dir)
+
         self.model_config = AutoConfig.from_pretrained(self.hf_model_config_path)
+
+    def __del__(self):
+        # Clean up temporary directories
+        if self.s3_local_dir and os.path.exists(self.s3_local_dir):
+            shutil.rmtree(self.s3_local_dir)
+        if self.s3_target_dir and os.path.exists(self.s3_target_dir):
+            shutil.rmtree(self.s3_target_dir)
 
     def get_transformers_auto_model_class(self):
         if "ForTokenClassification" in self.model_config.architectures[0]:
@@ -168,66 +183,43 @@ class BaseModelMerger(ABC):
         model.to_empty(device="cpu")
         model = self.patch_model_generation_config(model)
 
-        target_dir = self.config.target_dir
-        
-        # Handle S3 target directory by saving to local cache first
-        if self.config.is_s3_target_dir:
-            local_target_dir = os.path.join(self.config.local_cache_dir, "target_dir")
-            print(f"Saving model to local cache {local_target_dir} before uploading to {target_dir}")
-            model.save_pretrained(local_target_dir, state_dict=state_dict)
-            
-            processor = hf_processor(self.hf_model_config_path)
-            tokenizer = hf_tokenizer(self.hf_model_config_path)
-            if processor is not None:
-                print(f"Saving processor to local cache")
-                processor.save_pretrained(local_target_dir)
-            if tokenizer is not None:
-                print(f"Saving tokenizer to local cache")
-                tokenizer.save_pretrained(local_target_dir)
-                
-            # Upload to S3
-            print(f"Uploading model from local cache to {target_dir}")
-            self._upload_dir_to_s3(local_target_dir, target_dir)
-        else:
-            # Standard local save
-            print(f"Saving model to {target_dir}")
-            model.save_pretrained(target_dir, state_dict=state_dict)
-            
-            processor = hf_processor(self.hf_model_config_path)
-            tokenizer = hf_tokenizer(self.hf_model_config_path)
-            if processor is not None:
-                print(f"Saving processor to {target_dir}")
-                processor.save_pretrained(target_dir)
-            if tokenizer is not None:
-                print(f"Saving tokenizer to {target_dir}")
-                tokenizer.save_pretrained(target_dir)
-                
+        print(f"Saving model to {self.target_dir}")
+        model.save_pretrained(self.target_dir, state_dict=state_dict)
         del state_dict
         del model
 
-    def _upload_dir_to_s3(self, local_dir: str, s3_path: str):
-        """Upload a directory to S3."""
-        from verl.utils.s3_io import file_upload, parse_uri
-        
+        processor = hf_processor(self.hf_model_config_path)
+        tokenizer = hf_tokenizer(self.hf_model_config_path)
+        if processor is not None:
+            print(f"Saving processor to {self.target_dir}")
+            processor.save_pretrained(self.target_dir)
+        if tokenizer is not None:
+            print(f"Saving tokenizer to {self.target_dir}")
+            tokenizer.save_pretrained(self.target_dir)
+
+        # Upload to S3 if the original target_dir was an S3 path
+        if self.s3_target_dir and is_s3_path(self.config.target_dir):
+            self._upload_to_s3(self.s3_target_dir, self.config.target_dir)
+
+    def _upload_to_s3(self, local_dir: str, s3_path: str):
+        """Upload local directory to S3"""
+        print(f"Uploading model from {local_dir} to {s3_path}")
         bucket, prefix, _ = parse_uri(s3_path, is_dir=True)
         
         for root, _, files in os.walk(local_dir):
             for file in files:
-                local_file_path = os.path.join(root, file)
-                # Calculate relative path from local_dir
-                rel_path = os.path.relpath(local_file_path, local_dir)
-                # Construct S3 destination path
-                s3_file_path = f"{prefix}{rel_path}"
-                
-                print(f"Uploading {local_file_path} to s3://{bucket}/{s3_file_path}")
-                file_upload(bucket, local_file_path, s3_file_path)
+                file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, local_dir)
+                s3_key = f"{prefix}{relative_path}"
+                from verl.utils.s3_io import file_upload
+                file_upload(bucket, file_path, s3_key)
 
     def upload_to_huggingface(self):
         from huggingface_hub import HfApi
 
         api = HfApi()
         api.create_repo(repo_id=self.config.hf_upload_path, private=self.config.private, exist_ok=True)
-        api.upload_folder(folder_path=self.config.target_dir, repo_id=self.config.hf_upload_path, repo_type="model")
+        api.upload_folder(folder_path=self.target_dir, repo_id=self.config.hf_upload_path, repo_type="model")
 
     @abstractmethod
     def merge_and_save(self):
@@ -237,15 +229,14 @@ class BaseModelMerger(ABC):
 class FSDPModelMerger(BaseModelMerger):
     def _get_world_size(self) -> int:
         """Extracts the FSDP world_size from checkpoint filenames (e.g., 'model_world_size_8_rank_0.pt')."""
-        for filename in os.listdir(self.config.local_dir):
+        for filename in os.listdir(self.local_dir):
             match = re.match(r"model_world_size_(\d+)_rank_0\.pt", filename)
             if match:
                 return int(match.group(1))
-        raise FileNotFoundError(f"Could not determine world size. No file matching 'model_world_size_(\d+)_rank_0.pt' found in {self.config.local_dir}")
+        raise FileNotFoundError(f"Could not determine world size. No file matching 'model_world_size_(\d+)_rank_0.pt' found in {self.local_dir}")
 
     def _load_rank_zero_state_dict(self, world_size: int) -> dict:
-        file_path = Path(self.config.local_dir) / f"model_world_size_{world_size}_rank_0.pt"
-        return torch.load(file_path, map_location="cpu", weights_only=False)
+        return torch.load(Path(self.local_dir) / f"model_world_size_{world_size}_rank_0.pt", map_location="cpu", weights_only=False)
 
     def _extract_device_mesh_info(self, state_dict: dict, world_size: int) -> tuple[np.ndarray, tuple[str, ...]]:
         """
@@ -296,7 +287,7 @@ class FSDPModelMerger(BaseModelMerger):
         model_state_dict_lst = [None] * total_shards
 
         def process_one_shard(rank: int, model_state_dict_lst: list):
-            model_path = Path(self.config.local_dir) / f"model_world_size_{world_size}_rank_{rank}.pt"
+            model_path = Path(self.local_dir) / f"model_world_size_{world_size}_rank_{rank}.pt"
             state_dict = torch.load(model_path, map_location="cpu", weights_only=False)
             model_state_dict_lst[rank] = state_dict
             return state_dict
@@ -368,7 +359,8 @@ class FSDPModelMerger(BaseModelMerger):
         if self.config.operation == "test":
             if not self.config.test_hf_dir:
                 raise ValueError("test_hf_dir must be provided for test operation")
-            self._test_state_dict(merged_state_dict)
+            test_hf_dir = get_local_path(self.config.test_hf_dir)
+            self._test_state_dict(merged_state_dict, test_hf_dir)
         elif self.config.operation == "merge":
             self.save_hf_model_and_tokenizer(merged_state_dict)
             if self.config.hf_upload:
@@ -376,10 +368,10 @@ class FSDPModelMerger(BaseModelMerger):
         else:
             raise ValueError(f"Unknown operation: {self.config.operation}")
 
-    def _test_state_dict(self, state_dict: dict[str, torch.Tensor]):
+    def _test_state_dict(self, state_dict: dict[str, torch.Tensor], test_hf_dir: str):
         auto_model_class = self.get_transformers_auto_model_class()
 
-        hf_model = auto_model_class.from_pretrained(self.config.test_hf_dir, torch_dtype=torch.bfloat16)
+        hf_model = auto_model_class.from_pretrained(test_hf_dir, torch_dtype=torch.bfloat16)
         hf_state_dict = hf_model.state_dict()
         del hf_model
 
@@ -548,7 +540,7 @@ class MegatronModelMerger(BaseModelMerger):
     def merge_and_save(self):
         from verl.utils.megatron_utils import get_model_checkpoint_path
 
-        model_ckpt_path = get_model_checkpoint_path(self.config.local_dir)
+        model_ckpt_path = get_model_checkpoint_path(self.local_dir)
         sharded_dirs, tp_size, pp_size = self._check_megatron_checkpoint_path(model_ckpt_path)
         print(f"sharded_dirs: {sharded_dirs}, tp_size: {tp_size}, pp_size: {pp_size}, mp_size: {len(sharded_dirs)}")
 
@@ -559,7 +551,8 @@ class MegatronModelMerger(BaseModelMerger):
         if self.config.operation == "test":
             if not self.config.test_hf_dir:
                 raise ValueError("test_hf_dir must be provided for test operation")
-            self._test_state_dict(merged_state_dict)
+            test_hf_dir = get_local_path(self.config.test_hf_dir)
+            self._test_state_dict(merged_state_dict, test_hf_dir)
         elif self.config.operation == "merge":
             self.save_hf_model_and_tokenizer(merged_state_dict)
             if self.config.hf_upload:
@@ -567,12 +560,12 @@ class MegatronModelMerger(BaseModelMerger):
         else:
             raise ValueError(f"Unknown operation: {self.config.operation}")
 
-    def _test_state_dict(self, state_dict: dict[str, torch.Tensor]):
+    def _test_state_dict(self, state_dict: dict[str, torch.Tensor], test_hf_dir: str):
         """
         Compares the merged Megatron state_dict against a reference safetensors model.
         Applies necessary name mappings from Megatron to Hugging Face conventions using _replace_name.
         """
-        ref_state_dict = load_file(Path(self.config.test_hf_dir) / "model.safetensors")
+        ref_state_dict = load_file(Path(test_hf_dir) / "model.safetensors")
 
         params_mapping = [
             # (megatron core gpt model name, vllm model name)
@@ -637,18 +630,18 @@ def main():
 
     base_op_parser = argparse.ArgumentParser(add_help=False)
     base_op_parser.add_argument("--backend", type=str, required=True, choices=["fsdp", "megatron"], help="The backend of the model")
-    base_op_parser.add_argument("--local_dir", type=str, required=True, help="Path to the saved model checkpoints (local or s3://)")
+    base_op_parser.add_argument("--local_dir", type=str, required=True, help="Path to the saved model checkpoints (local path or s3:// path)")
     base_op_parser.add_argument("--hf_model_path", type=str, default=None, help="(Deprecated) Path to the original Hugging Face model for config.")
     base_op_parser.add_argument("--tie-word-embedding", action="store_true", help="Whether to tie word embedding weights (currently only Megatron supported)")
     base_op_parser.add_argument("--is-value-model", action="store_true", help="Whether the model is a value model (currently only Megatron supported)")
 
     merge_parser = subparsers.add_parser("merge", parents=[base_op_parser], help="Merge model checkpoints and save.")
-    merge_parser.add_argument("--target_dir", default="tmp", type=str, help="Directory to save the merged huggingface model (local or s3://)")
+    merge_parser.add_argument("--target_dir", default="tmp", type=str, help="Directory to save the merged huggingface model (local path or s3:// path)")
     merge_parser.add_argument("--hf_upload_path", default=None, type=str, help="Hugging Face repository ID to upload the model")
     merge_parser.add_argument("--private", action="store_true", help="Whether to upload the model to a private Hugging Face repository")
 
     test_parser = subparsers.add_parser("test", parents=[base_op_parser], help="Test merged model against a reference Hugging Face model")
-    test_parser.add_argument("--test_hf_dir", type=str, required=True, help="Path to the reference Hugging Face model directory for testing (local or s3://)")
+    test_parser.add_argument("--test_hf_dir", type=str, required=True, help="Path to the reference Hugging Face model directory for testing")
 
     args = parser.parse_args()
 
@@ -670,7 +663,8 @@ def main():
             private=args.private,
             test_hf_dir=None,
         )
-        os.makedirs(config.target_dir, exist_ok=True)
+        if not is_s3_path(config.target_dir):
+            os.makedirs(config.target_dir, exist_ok=True)
     elif args.operation == "test":
         config = ModelMergerConfig(
             **common_config_args,
