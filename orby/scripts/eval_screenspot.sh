@@ -9,6 +9,14 @@ OUTPUT_FILE=test-output-1.parquet
 # Convert the dataset to parquet format
 python3 -m orby.data.convert_screenspot
 
+# Convert screenspot v2 to parquet format
+# DATA_PATH=~/data/screenspot_v2
+# huggingface-cli download OS-Copilot/ScreenSpot-v2 --repo-type dataset --local-dir=$DATA_PATH
+# python orby/data/convert_screenspot_v2.py --image_dir=$HOME/data/screenspot_v2/screenspotv2_image/
+# cd $HOME/data/screenspot_v2
+# unzip screenspotv2_image.zip
+# cd -
+
 # Generation
 python3 -m orby.trainer.main_generation \
     trainer.nnodes=1 \

@@ -93,13 +93,18 @@ def process_json_file(json_path, image_dir, split):
         # Get image resize ratios
         height_ratio, width_ratio = get_resized_ratio(image)
 
+        # Convert PIL Image to bytes
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format=image.format or "PNG")
+        img_byte_arr = img_byte_arr.getvalue()
+
         # Adjust bbox based on resize ratios
         bbox = example["bbox"]
         bbox = [
             bbox[0] * width_ratio,
             bbox[1] * height_ratio,
-            bbox[2] * width_ratio,
-            bbox[3] * height_ratio,
+            (bbox[0] + bbox[2]) * width_ratio,
+            (bbox[1] + bbox[3]) * height_ratio,
         ]
 
         device = _SOURCE_MAP.get(example["data_source"], "web")
@@ -123,7 +128,7 @@ def process_json_file(json_path, image_dir, split):
                     ),
                 },
             ],
-            "images": [image],
+            "images": [img_byte_arr],
             "ability": "vision",
             "reward_model": {
                 "style": "rule",
@@ -169,7 +174,7 @@ if __name__ == "__main__":
             logging.warning(f"JSON file not found: {json_path}")
             continue
 
-        examples = process_json_file(json_path, image_dir, "train")
+        examples = process_json_file(json_path, image_dir, "test")
         all_examples.extend(examples)
 
     # Convert to dataset
@@ -177,7 +182,7 @@ if __name__ == "__main__":
     dataset = dataset.cast_column("images", Sequence(ImageData()))
 
     # Save to parquet
-    dataset.to_parquet(os.path.join(local_dir, "train.parquet"))
+    dataset.to_parquet(os.path.join(local_dir, "test.parquet"))
 
     if args.hdfs_dir is not None:
         makedirs(args.hdfs_dir)
