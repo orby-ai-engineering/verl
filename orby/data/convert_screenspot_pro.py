@@ -28,7 +28,6 @@ from datasets import Image as ImageData
 from PIL import Image
 from transformers import AutoProcessor
 from qwen_vl_utils import smart_resize
-import pyarrow.parquet as pq
 
 from verl.utils.hdfs_io import copy, makedirs
 
