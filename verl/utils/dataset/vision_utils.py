@@ -21,12 +21,19 @@ from qwen_vl_utils import fetch_image, fetch_video
 
 
 def process_image(image: Union[dict, Image.Image]) -> Image.Image:
+    """ START ORBY CHANGES """
+    if isinstance(image, dict) and 'bytes' in image:
+        png_bytes = image['bytes']
+        return Image.open(BytesIO(png_bytes)).convert("RGB")
+    """ END """
     if isinstance(image, Image.Image):
         return image.convert("RGB")
 
     if "bytes" in image:
         assert "image" not in image, "Cannot have both `bytes` and `image`"
-        image["image"] = BytesIO(image["bytes"])
+        # NOTE: edited main code of VERL to fix downstream issue in fetch_image
+        # "binary object does not have `startswith` method"
+        image["image"] = Image.open(BytesIO(image["bytes"])).convert("RGB")
 
     return fetch_image(image)
 
