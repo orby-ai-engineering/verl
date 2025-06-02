@@ -1,5 +1,10 @@
 set -e
 
+# How to run:
+# bash orby/scripts/eval_screenspot.sh --version screenspot
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro
+
 # Default values
 DATASET_VERSION="screenspot"
 MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
