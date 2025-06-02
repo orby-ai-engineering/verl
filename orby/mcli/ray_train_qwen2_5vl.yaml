@@ -4,7 +4,7 @@ image: whatcanyousee/verl:ngc-cu124-vllm0.8.3-sglang0.4.5-mcore0.12.0-te2.2
 integrations:
   - integration_type: git_repo
     git_repo: orby-ai-engineering/verl
-    git_branch: main
+    git_branch: main 
     pip_install: .
     ssh_clone: true
 command: |
@@ -65,7 +65,6 @@ command: |
             actor_rollout_ref.model.enable_gradient_checkpointing=True \
             actor_rollout_ref.actor.fsdp_config.param_offload=False \
             actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
-            +actor_rollout_ref.actor.fsdp_config.model_dtype=bfloat16 \
             actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=20 \
             actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
             actor_rollout_ref.rollout.name=vllm \
@@ -77,7 +76,6 @@ command: |
             actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=20 \
             actor_rollout_ref.ref.fsdp_config.param_offload=True \
             algorithm.use_kl_in_reward=False \
-            +critic.model.fsdp_config.model_dtype=bfloat16 \
             trainer.critic_warmup=0 \
             trainer.logger=['console','wandb'] \
             trainer.project_name='verl_grpo_example_geo3k' \
