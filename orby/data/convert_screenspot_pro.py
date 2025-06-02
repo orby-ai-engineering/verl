@@ -28,6 +28,7 @@ from datasets import Image as ImageData
 from PIL import Image
 from transformers import AutoProcessor
 from qwen_vl_utils import smart_resize
+import pyarrow.parquet as pq
 
 from verl.utils.hdfs_io import copy, makedirs
 
@@ -203,6 +204,15 @@ if __name__ == "__main__":
 
         # Save to parquet
         dataset.to_parquet(os.path.join(local_dir, f"test-{shard}.parquet"))
+
+    files = [os.path.join(local_dir, f"test-{shard}.parquet") for shard in range(shard)]
+
+    schema = pq.ParquetFile(files[0]).schema_arrow
+    with pq.ParquetWriter(
+        os.path.join(local_dir, "test.parquet"), schema=schema
+    ) as writer:
+        for file in files:
+            writer.write_table(pq.read_table(file, schema=schema))
 
     if args.hdfs_dir is not None:
         makedirs(args.hdfs_dir)

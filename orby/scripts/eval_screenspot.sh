@@ -33,7 +33,7 @@ case $DATASET_VERSION in
         ;;
     "screenspot_pro")
         DATA_PATH=~/data/screenspot_pro
-        PARQUET_PATTERN="test-*.parquet"
+        PARQUET_PATTERN="test.parquet"
         ;;
     *)
         echo "Invalid dataset version: $DATASET_VERSION"
