@@ -25,7 +25,7 @@ python3 -m orby.trainer.main_generation \
     +rollout.limit_images=3
 
 # Evaluation
-python3 -m verl.trainer.main_eval \
+python3 -m orby.trainer.main_eval \
     data.path=$OUTPUT_FILE \
     data.prompt_key=prompt \
     data.response_key=responses \
