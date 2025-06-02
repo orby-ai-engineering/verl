@@ -180,17 +180,29 @@ if __name__ == "__main__":
         raise ValueError(f"No JSON files found in {annotations_dir}")
 
     all_examples = []
+    shard = 0
     for json_file in json_files:
         logging.info(f"Processing {json_file}")
-        examples = process_json_file(json_file, image_dir, "train")
+        examples = process_json_file(json_file, image_dir, "test")
         all_examples.extend(examples)
+        if len(all_examples) > 750:
+            # Convert to dataset
+            dataset = datasets.Dataset.from_list(all_examples)
+            dataset = dataset.cast_column("images", Sequence(ImageData()))
 
-    # Convert to dataset
-    dataset = datasets.Dataset.from_list(all_examples)
-    dataset = dataset.cast_column("images", Sequence(ImageData()))
+            # Save to parquet
+            dataset.to_parquet(os.path.join(local_dir, f"test-{shard}.parquet"))
+            shard += 1
+            all_examples = []
 
-    # Save to parquet
-    dataset.to_parquet(os.path.join(local_dir, "train.parquet"))
+    # Convert the final shard.
+    if len(all_examples):
+        # Convert to dataset
+        dataset = datasets.Dataset.from_list(all_examples)
+        dataset = dataset.cast_column("images", Sequence(ImageData()))
+
+        # Save to parquet
+        dataset.to_parquet(os.path.join(local_dir, f"test-{shard}.parquet"))
 
     if args.hdfs_dir is not None:
         makedirs(args.hdfs_dir)
