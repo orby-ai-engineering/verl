@@ -27,8 +27,6 @@ import ray
 from tqdm import tqdm
 
 from verl.utils.fs import copy_to_local
-from functools import partial
-import pyarrow.parquet as pq
 
 
 # Copied from recipe/r1/main_eval.py
