@@ -1,34 +1,79 @@
 set -e
 
+# Default values
+DATASET_VERSION="screenspot"
 MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
 REWARD_FILE=orby/reward/screenspot.py
 REWARD_FN=reward_func
 OUTPUT_FILE=result-test-output-1.parquet
 
-# Convert the dataset to parquet format
-DATA_PATH=~/data/screenspot
-python3 -m orby.data.convert_screenspot
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --version)
+            DATASET_VERSION="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
-# Convert screenspot v2 to parquet format
-# DATA_PATH=~/data/screenspot_v2
-# huggingface-cli download OS-Copilot/ScreenSpot-v2 --repo-type dataset --local-dir=$DATA_PATH
-# cd $HOME/data/screenspot_v2
-# unzip screenspotv2_image.zip
-# cd -
-# python orby/data/convert_screenspot_v2.py --image_dir=$HOME/data/screenspot_v2/screenspotv2_image/
+# Set dataset-specific variables
+case $DATASET_VERSION in
+    "screenspot")
+        DATA_PATH=~/data/screenspot
+        PARQUET_PATTERN="test.parquet"
+        ;;
+    "screenspot_v2")
+        DATA_PATH=~/data/screenspot_v2
+        PARQUET_PATTERN="test.parquet"
+        ;;
+    "screenspot_pro")
+        DATA_PATH=~/data/screenspot_pro
+        PARQUET_PATTERN="test-*.parquet"
+        ;;
+    *)
+        echo "Invalid dataset version: $DATASET_VERSION"
+        echo "Available versions: screenspot, screenspot_v2, screenspot_pro"
+        exit 1
+        ;;
+esac
 
-# Convert screenspot pro to parquet format
-# DATA_PATH=~/data/screenspot_pro
-# huggingface-cli download likaixin/ScreenSpot-Pro --repo-type dataset --local-dir=$DATA_PATH
-# python orby/data/convert_screenspot_pro.py
+echo "Using dataset version: $DATASET_VERSION"
+echo "Data path: $DATA_PATH"
 
+# Check if parquet files already exist
+if ls $DATA_PATH/$PARQUET_PATTERN 1> /dev/null 2>&1; then
+    echo "Parquet files already exist, skipping conversion..."
+else
+    echo "Converting dataset..."
+    case $DATASET_VERSION in
+        "screenspot")
+            python3 -m orby.data.convert_screenspot
+            ;;
+        "screenspot_v2")
+            huggingface-cli download OS-Copilot/ScreenSpot-v2 --repo-type dataset --local-dir=$DATA_PATH
+            cd $DATA_PATH
+            unzip screenspotv2_image.zip
+            cd -
+            python orby/data/convert_screenspot_v2.py --image_dir=$DATA_PATH/screenspotv2_image/
+            ;;
+        "screenspot_pro")
+            huggingface-cli download likaixin/ScreenSpot-Pro --repo-type dataset --local-dir=$DATA_PATH
+            python orby/data/convert_screenspot_pro.py
+            ;;
+    esac
+fi
 
 # Generation
 # Screenspot pro has example with more than 16k tokens.
 python3 -m orby.trainer.main_generation \
     trainer.nnodes=1 \
     trainer.n_gpus_per_node=8 \
-    data.path=$DATA_PATH/test*.parquet \
+    data.path=$DATA_PATH/$PARQUET_PATTERN \
     data.prompt_key=prompt \
     data.batch_size=256 \
     +data.max_prompt_length=20000 \
