@@ -28,6 +28,12 @@ from transformers import AutoProcessor
 from qwen_vl_utils import smart_resize
 
 from verl.utils.hdfs_io import copy, makedirs
+from qwen_agent.llm.fncall_prompts.nous_fncall_prompt import (
+    NousFnCallPrompt,
+    Message,
+    ContentItem,
+)
+from orby.utils.dataset.qwen_agent_function_call import ComputerUse
 
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
@@ -61,6 +67,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--local_dir", default="~/data/screenspot")
     parser.add_argument("--hdfs_dir", default=None)
+    parser.add_argument(
+        "--prompt_format",
+        choices=["original", "qwen"],
+        default="original",
+        help="Select prompt format: 'original' or 'qwen'",
+    )
 
     args = parser.parse_args()
 
@@ -98,9 +110,9 @@ if __name__ == "__main__":
                 "device": device,
             }
 
-            data = {
-                "data_source": "screenspot",
-                "prompt": [
+            # Create prompt based on selected format
+            if args.prompt_format == "original":
+                prompt = [
                     {
                         "role": "user",
                         "content": (
@@ -110,7 +122,37 @@ if __name__ == "__main__":
                             "<image> Instruction: " + instruction
                         ),
                     },
-                ],
+                ]
+            else:  # qwen format
+                prompt = NousFnCallPrompt().preprocess_fncall_messages(
+                    messages=[
+                        Message(
+                            role="system",
+                            content=[ContentItem(text="You are a helpful assistant.")],
+                        ),
+                        Message(
+                            role="user",
+                            content=[
+                                ContentItem(text=instruction),
+                                ContentItem(image=image),
+                            ],
+                        ),
+                    ],
+                    functions=[
+                        ComputerUse(
+                            cfg={
+                                "display_width_px": resized_width,
+                                "display_height_px": resized_height,
+                            }
+                        ).function
+                    ],
+                    lang=None,
+                )
+                prompt = [msg.model_dump() for msg in prompt]
+
+            data = {
+                "data_source": "screenspot",
+                "prompt": prompt,
                 "images": [image],
                 "ability": "vision",
                 "reward_model": {
@@ -141,3 +183,54 @@ if __name__ == "__main__":
     if args.hdfs_dir is not None:
         makedirs(args.hdfs_dir)
         copy(src=local_dir, dst=args.hdfs_dir)
+
+
+def qwen_format_prompt(image, user_query, processor):
+    """
+    Perform GUI grounding using Qwen model to interpret user query on a screenshot.
+
+    Args:
+        image (str): Path to the screenshot image
+        user_query (str): User's query/instruction
+        model: Preloaded Qwen model
+        processor: Preloaded Qwen processor
+
+    Returns:
+        tuple: (output_text, display_image) - Model's output text and annotated image
+    """
+
+    # Open and process image
+    resized_height, resized_width = smart_resize(
+        image.height,
+        image.width,
+        factor=processor.image_processor.patch_size
+        * processor.image_processor.merge_size,
+        min_pixels=processor.image_processor.min_pixels,
+        max_pixels=processor.image_processor.max_pixels,
+    )
+
+    # Initialize computer use function
+    computer_use = ComputerUse(
+        cfg={"display_width_px": resized_width, "display_height_px": resized_height}
+    )
+
+    # Build messages
+    message = NousFnCallPrompt().preprocess_fncall_messages(
+        messages=[
+            Message(
+                role="system",
+                content=[ContentItem(text="You are a helpful assistant.")],
+            ),
+            Message(
+                role="user",
+                content=[
+                    ContentItem(text=user_query),
+                    ContentItem(image=f"file://{test.png}"),
+                ],
+            ),
+        ],
+        functions=[computer_use.function],
+        lang=None,
+    )
+    message = [msg.model_dump() for msg in message]
+    return message
