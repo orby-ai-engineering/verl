@@ -113,9 +113,11 @@ class UISubtaskRewardScorer:
         details = {
             "score": score,
             "format": format_score,
-            "should_end": should_end_score,
-            "goal_achieved": goal_achieved_score,
-            "answer": answer_score,
+            "reward_model/score": score,
+            "reward_model/format": format_score,
+            "reward_model/should_end": should_end_score,
+            "reward_model/goal_achieved": goal_achieved_score,
+            "reward_model/answer": answer_score,
         }
 
         return details
@@ -255,16 +257,22 @@ class UISubtaskRewardScorer:
         details = {
             "score": score,
             "format": format_score,
-            "action_type": action_type_score,
-            "coordinates": coordinates_score,
-            "action_args": action_args_score,
-            "in_action_space": not action_type_parser_error,
+            "executor/score": score,
+            "executor/format": format_score,
+            "executor/action_type": action_type_score,
+            "executor/coordinates": coordinates_score,
+            "executor/action_args": action_args_score,
+            "executor/in_action_space": not action_type_parser_error,
         }
 
         # Aggregate action-type-wise scores
         if not action_type_parser_error:
-            details[f"{gt_action_info['action_type']}/coordinates"] = coordinates_score
-            details[f"{gt_action_info['action_type']}/action_args"] = action_args_score
+            details[f"executor/coordinates/{gt_action_info['action_type']}"] = (
+                coordinates_score
+            )
+            details[f"executor/action_args/{gt_action_info['action_type']}"] = (
+                action_args_score
+            )
 
         return details
 
