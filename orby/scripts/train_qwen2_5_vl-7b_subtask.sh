@@ -4,8 +4,8 @@ ENGINE=${1:-vllm}
 # If you are using vllm<=0.6.3, you might need to set the following environment variable to avoid bugs:
 # export VLLM_ATTENTION_BACKEND=XFORMERS
 
-TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/executor.parquet # "[\"$HOME/data/subtask_direct_distill/mix/train/executor.parquet\", \"$HOME/data/subtask_direct_distill/mix/train/reward_model.parquet\"]"
-VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/executor.parquet # "[\"$HOME/data/subtask_direct_distill/mix/test/executor.parquet\", \"$HOME/data/subtask_direct_distill/mix/test/reward_model.parquet\"]"
+TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined.parquet
+VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/combined.parquet
 
 REWARD_FILE=orby/reward/subtask.py
 REWARD_FN=reward_func
