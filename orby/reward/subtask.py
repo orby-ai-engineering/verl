@@ -113,7 +113,7 @@ class UISubtaskRewardScorer:
         details = {
             "score": score,
             "format": format_score,
-            "reward_model/score": score,
+            "reward_model/reward": score,
             "reward_model/format": format_score,
             "reward_model/should_end": should_end_score,
             "reward_model/goal_achieved": goal_achieved_score,
@@ -257,7 +257,7 @@ class UISubtaskRewardScorer:
         details = {
             "score": score,
             "format": format_score,
-            "executor/score": score,
+            "executor/reward": score,
             "executor/format": format_score,
             "executor/action_type": action_type_score,
             "executor/coordinates": coordinates_score,
