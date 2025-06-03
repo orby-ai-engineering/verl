@@ -295,9 +295,18 @@ class UISubtaskRewardScorer:
             and "should_end" in gt_keys
             and "goal_achieved" in gt_keys
             and "answer" in gt_keys
+            and ("action" not in gt_keys or not gt_keys["action"])
+            and ("thinking" not in gt_keys or not gt_keys["thinking"])
         ):
             result = self._score_reward_model(prediction, ground_truth)
-        elif "thinking" in gt_keys and "action" in gt_keys:
+        elif (
+            "thinking" in gt_keys
+            and "action" in gt_keys
+            and ("reasoning" not in gt_keys or not gt_keys["reasoning"])
+            and ("should_end" not in gt_keys or not gt_keys["should_end"])
+            and ("goal_achieved" not in gt_keys or not gt_keys["goal_achieved"])
+            and ("answer" not in gt_keys or not gt_keys["answer"])
+        ):
             result = self._score_executor(prediction, ground_truth)
         else:
             raise ValueError("Invalid ground truth type")
