@@ -142,10 +142,6 @@ class RLHFDataset(Dataset):
         if self.image_key in example or self.video_key in example:
             for message in messages:
                 content = message["content"]
-                # Orby change: content is a list already formatted.
-                if isinstance(content, list):
-                    continue
-                # Orby change ends
                 content_list = []
                 for segment in re.split("(<image>|<video>)", content):
                     if segment == "<image>":
@@ -182,6 +178,14 @@ class RLHFDataset(Dataset):
             if self.video_key in row_dict:
                 videos = [process_video(video) for video in row_dict.pop(self.video_key)]
                 multi_modal_data["video"] = [video.numpy() for video in videos]
+
+            # Orby change: handle qwen format prompt
+            if "format" in row_dict and row_dict["format"] == "qwen":
+                from qwen_vl_utils import process_vision_info
+                images, videos = process_vision_info(messages)
+                multi_modal_data["image"] = images
+                multi_modal_data["video"] = videos
+            # Orby change ends
 
             model_inputs = self.processor(text=[raw_prompt], images=images, videos=videos, return_tensors="pt")
 

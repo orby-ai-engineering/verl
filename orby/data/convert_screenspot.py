@@ -111,47 +111,7 @@ if __name__ == "__main__":
                 "device": device,
             }
 
-            # Create prompt based on selected format
-            if args.prompt_format == "original":
-                prompt = [
-                    {
-                        "role": "user",
-                        "content": (
-                            "Map the user instruction to the coordinates in the UI image. "
-                            "Think step by step before you answer. The reasoning process MUST BE enclosed within <think> </think> tags. "
-                            "The coordinate x and y MUST BE put in <answer> </answer> tags, separeted by space. "
-                            "<image> Instruction: " + instruction
-                        ),
-                    },
-                ]
-            else:  # qwen format
-                prompt = NousFnCallPrompt().preprocess_fncall_messages(
-                    messages=[
-                        Message(
-                            role="system",
-                            content=[ContentItem(text="You are a helpful assistant.")],
-                        ),
-                        Message(
-                            role="user",
-                            content=instruction + "<image>",
-                        ),
-                    ],
-                    functions=[
-                        ComputerUse(
-                            cfg={
-                                "display_width_px": resized_width,
-                                "display_height_px": resized_height,
-                            }
-                        ).function
-                    ],
-                    lang=None,
-                )
-                # Image already in the prompt in base64 format.
-                prompt = [msg.model_dump() for msg in prompt]
-
             data = {
-                "prompt": prompt,
-                "images": [image],
                 "data_source": "screenspot",
                 "ability": "vision",
                 "reward_model": {
@@ -165,6 +125,60 @@ if __name__ == "__main__":
                     "bounding_box": bbox,
                 },
             }
+
+            # Create prompt based on selected format
+            if args.prompt_format == "original":
+                example = {
+                    "prompt": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Map the user instruction to the coordinates in the UI image. "
+                                "Think step by step before you answer. The reasoning process MUST BE enclosed within <think> </think> tags. "
+                                "The coordinate x and y MUST BE put in <answer> </answer> tags, separeted by space. "
+                                "<image> Instruction: " + instruction
+                            ),
+                        },
+                    ],
+                    "images": [image],
+                }
+            else:  # qwen format
+                # Convert image to base64
+                buffered = io.BytesIO()
+                image.save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+
+                prompt = NousFnCallPrompt().preprocess_fncall_messages(
+                    messages=[
+                        Message(
+                            role="system",
+                            content=[ContentItem(text="You are a helpful assistant.")],
+                        ),
+                        Message(
+                            role="user",
+                            content=[
+                                ContentItem(text=instruction),
+                                ContentItem(image=f"data:image/png;base64,{img_str}"),
+                            ],
+                        ),
+                    ],
+                    functions=[
+                        ComputerUse(
+                            cfg={
+                                "display_width_px": resized_width,
+                                "display_height_px": resized_height,
+                            }
+                        ).function
+                    ],
+                    lang=None,
+                )
+                # Image already in the prompt in base64 format.
+                example = {
+                    "prompt": [msg.model_dump() for msg in prompt],
+                    "format": "qwen",
+                }
+
+            data.update(example)
             return data
 
         return process_fn
