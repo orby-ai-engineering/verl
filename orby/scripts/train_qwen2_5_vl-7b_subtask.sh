@@ -8,7 +8,7 @@ TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined.parquet
 VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/combined.parquet
 
 REWARD_FILE=orby/reward/subtask.py
-REWARD_FN=reward_func
+REWARD_FN=training_reward_func
 
 echo "If you encounter OOM, try tweaking the following parameters:"
 echo "data.train_batch_size"
