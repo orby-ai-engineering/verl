@@ -657,6 +657,8 @@ class RayPPOTrainer:
                 dump_path=val_data_dir,
             )
 
+        print(sample_scores[0], lst[0])
+        print(sample_scores[1], lst[1])
         for key_info, lst in reward_extra_infos_dict.items():
             assert len(lst) == 0 or len(lst) == len(sample_scores), f"{key_info}: {len(lst)=}, {len(sample_scores)=}"
 

@@ -1,12 +1,12 @@
-YOUR_EMAIL=""
-YOUR_NAME=""
-if [ -z "$YOUR_EMAIL" ] || [ -z "$YOUR_NAME" ]; then
-    echo "Please set YOUR_EMAIL and YOUR_NAME in the script"
-    exit 1
-fi
-echo Using $YOUR_EMAIL and $YOUR_NAME for git config
-git config --global user.email $YOUR_EMAIL
-git config --global user.name $YOUR_NAME
+#YOUR_EMAIL=""
+#YOUR_NAME=""
+#if [ -z "$YOUR_EMAIL" ] || [ -z "$YOUR_NAME" ]; then
+#    echo "Please set YOUR_EMAIL and YOUR_NAME in the script"
+#    exit 1
+#fi
+#echo Using $YOUR_EMAIL and $YOUR_NAME for git config
+#git config --global user.email $YOUR_EMAIL
+#git config --global user.name $YOUR_NAME
 
 # Accelerate package download speed
 sed -i 's|mirrors.tuna.tsinghua.edu.cn|archive.ubuntu.com|g' /etc/apt/sources.list

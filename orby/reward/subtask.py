@@ -318,7 +318,7 @@ def compute_score(prediction: str, ground_truth: dict) -> dict:
 
 
 def reward_func(data_source, solution_str, ground_truth, extra_info=None):
-    if data_source == "subtask_direct_distill":
+    if data_source == "subtask_direct_distill" or data_source == "hsmv2_distill":
         from orby.reward import subtask
 
         return subtask.compute_score(solution_str, ground_truth)
