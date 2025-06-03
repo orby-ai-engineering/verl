@@ -19,6 +19,7 @@ import argparse
 import io
 import os
 import logging
+import base64
 
 import datasets
 from datasets import Sequence
@@ -110,20 +111,43 @@ if __name__ == "__main__":
                 "device": device,
             }
 
+            data = {
+                "data_source": "screenspot",
+                "ability": "vision",
+                "reward_model": {
+                    "style": "rule",
+                    "ground_truth": ground_truth,
+                },
+                "extra_info": {
+                    "split": split,
+                    "index": idx,
+                    "question": instruction,
+                    "bounding_box": bbox,
+                },
+            }
+
             # Create prompt based on selected format
             if args.prompt_format == "original":
-                prompt = [
-                    {
-                        "role": "user",
-                        "content": (
-                            "Map the user instruction to the coordinates in the UI image. "
-                            "Think step by step before you answer. The reasoning process MUST BE enclosed within <think> </think> tags. "
-                            "The coordinate x and y MUST BE put in <answer> </answer> tags, separeted by space. "
-                            "<image> Instruction: " + instruction
-                        ),
-                    },
-                ]
+                example = {
+                    "prompt": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Map the user instruction to the coordinates in the UI image. "
+                                "Think step by step before you answer. The reasoning process MUST BE enclosed within <think> </think> tags. "
+                                "The coordinate x and y MUST BE put in <answer> </answer> tags, separeted by space. "
+                                "<image> Instruction: " + instruction
+                            ),
+                        },
+                    ],
+                    "images": [image],
+                }
             else:  # qwen format
+                # Convert image to base64
+                buffered = io.BytesIO()
+                image.save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+
                 prompt = NousFnCallPrompt().preprocess_fncall_messages(
                     messages=[
                         Message(
@@ -134,7 +158,7 @@ if __name__ == "__main__":
                             role="user",
                             content=[
                                 ContentItem(text=instruction),
-                                ContentItem(image=image),
+                                ContentItem(image=f"data:image/png;base64,{img_str}"),
                             ],
                         ),
                     ],
@@ -148,24 +172,12 @@ if __name__ == "__main__":
                     ],
                     lang=None,
                 )
-                prompt = [msg.model_dump() for msg in prompt]
+                # Image already in the prompt in base64 format.
+                example = {
+                    "prompt": [msg.model_dump() for msg in prompt],
+                }
 
-            data = {
-                "data_source": "screenspot",
-                "prompt": prompt,
-                "images": [image],
-                "ability": "vision",
-                "reward_model": {
-                    "style": "rule",
-                    "ground_truth": ground_truth,
-                },
-                "extra_info": {
-                    "split": split,
-                    "index": idx,
-                    "question": instruction,
-                    "bounding_box": bbox,
-                },
-            }
+            data.update(example)
             return data
 
         return process_fn
@@ -183,54 +195,3 @@ if __name__ == "__main__":
     if args.hdfs_dir is not None:
         makedirs(args.hdfs_dir)
         copy(src=local_dir, dst=args.hdfs_dir)
-
-
-def qwen_format_prompt(image, user_query, processor):
-    """
-    Perform GUI grounding using Qwen model to interpret user query on a screenshot.
-
-    Args:
-        image (str): Path to the screenshot image
-        user_query (str): User's query/instruction
-        model: Preloaded Qwen model
-        processor: Preloaded Qwen processor
-
-    Returns:
-        tuple: (output_text, display_image) - Model's output text and annotated image
-    """
-
-    # Open and process image
-    resized_height, resized_width = smart_resize(
-        image.height,
-        image.width,
-        factor=processor.image_processor.patch_size
-        * processor.image_processor.merge_size,
-        min_pixels=processor.image_processor.min_pixels,
-        max_pixels=processor.image_processor.max_pixels,
-    )
-
-    # Initialize computer use function
-    computer_use = ComputerUse(
-        cfg={"display_width_px": resized_width, "display_height_px": resized_height}
-    )
-
-    # Build messages
-    message = NousFnCallPrompt().preprocess_fncall_messages(
-        messages=[
-            Message(
-                role="system",
-                content=[ContentItem(text="You are a helpful assistant.")],
-            ),
-            Message(
-                role="user",
-                content=[
-                    ContentItem(text=user_query),
-                    ContentItem(image=f"file://{test.png}"),
-                ],
-            ),
-        ],
-        functions=[computer_use.function],
-        lang=None,
-    )
-    message = [msg.model_dump() for msg in message]
-    return message
