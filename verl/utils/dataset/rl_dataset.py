@@ -179,14 +179,6 @@ class RLHFDataset(Dataset):
                 videos = [process_video(video) for video in row_dict.pop(self.video_key)]
                 multi_modal_data["video"] = [video.numpy() for video in videos]
 
-            # Orby change: handle qwen format prompt
-            if "format" in row_dict and row_dict["format"] == "qwen":
-                from qwen_vl_utils import process_vision_info
-                images, videos = process_vision_info(messages)
-                multi_modal_data["image"] = images
-                multi_modal_data["video"] = videos
-            # Orby change ends
-
             model_inputs = self.processor(text=[raw_prompt], images=images, videos=videos, return_tensors="pt")
 
             input_ids = model_inputs.pop("input_ids")

@@ -124,6 +124,7 @@ if __name__ == "__main__":
                     "question": instruction,
                     "bounding_box": bbox,
                 },
+                "images": [image],
             }
 
             # Create prompt based on selected format
@@ -140,7 +141,6 @@ if __name__ == "__main__":
                             ),
                         },
                     ],
-                    "images": [image],
                 }
             else:  # qwen format
                 # Convert image to base64
@@ -157,8 +157,7 @@ if __name__ == "__main__":
                         Message(
                             role="user",
                             content=[
-                                ContentItem(text=instruction),
-                                ContentItem(image=f"data:image/png;base64,{img_str}"),
+                                ContentItem(text=instruction + "<image>"),
                             ],
                         ),
                     ],
@@ -172,9 +171,15 @@ if __name__ == "__main__":
                     ],
                     lang=None,
                 )
-                # Image already in the prompt in base64 format.
+
+                prompt = [msg.model_dump() for msg in prompt]
+                for message in prompt:
+                    # Replace the list of content to a string.
+                    content = "".join(m["text"] for m in message["content"])
+                    message["content"] = content
+
                 example = {
-                    "prompt": [msg.model_dump() for msg in prompt],
+                    "prompt": prompt,
                     "format": "qwen",
                 }
 
