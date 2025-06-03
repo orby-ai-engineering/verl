@@ -1,3 +1,4 @@
+
 # Copyright 2024 Bytedance Ltd. and/or its affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +50,7 @@ from torchdata.stateful_dataloader import StatefulDataLoader
 from verl.trainer.main_ppo import create_rl_dataset
 import verl.utils.hdfs_io as hdfs_io
 from verl.utils.dataset import SFTDataset
-from verl.utils.dataset.multiturn_sft_dataset import MultiTurnSFTDataset
+#from verl.utils.dataset.multiturn_sft_dataset import MultiTurnSFTDataset
 from verl.utils.dataset.rl_dataset import collate_fn
 from verl.utils.debug import log_gpu_memory_usage
 from verl.utils.distributed import initialize_global_process_group
@@ -65,7 +66,7 @@ from verl.utils.ulysses import (
 from verl.utils import hf_tokenizer, hf_processor
 from verl.utils.device import get_device_name, get_torch_device, is_cuda_available, is_npu_available
 from verl.workers.sharding_manager.fsdp_ulysses import FSDPUlyssesShardingManager
-
+from omegaconf import OmegaConf
 
 if is_cuda_available:
     from flash_attn.bert_padding import pad_input, unpad_input, rearrange, index_first_axis
@@ -97,12 +98,13 @@ def convert_to_regular_types(obj):
 
 
 class FSDPSFTTrainer:
-    def __init__(self, config, device_mesh: DeviceMesh, ulysses_device_mesh: DeviceMesh, tokenizer, train_dataset: Dataset, val_dataset: Dataset):
+    def __init__(self, config, device_mesh: DeviceMesh, ulysses_device_mesh: DeviceMesh, tokenizer, processor, train_dataset: Dataset, val_dataset: Dataset):
         self.config = config
         self.device_mesh = device_mesh
         self.ulysses_device_mesh = ulysses_device_mesh
         self.sharding_manager = FSDPUlyssesShardingManager(self.ulysses_device_mesh)
         self.tokenizer = tokenizer
+        self.processor = processor
         if self.config.data.chat_template is not None:
             raise ValueError("Apply Chat template from config is not supported yet.")
 
@@ -229,7 +231,7 @@ class FSDPSFTTrainer:
             if self.config.data.image_key is not None:
                 model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                             local_model_path,
-                            device_map=torch.cuda.current_device(),
+                            #device_map=torch.cuda.current_device(),
                             attn_implementation="sdpa"
                         )
             else:
@@ -588,6 +590,8 @@ class FSDPSFTTrainer:
             os.makedirs(path, exist_ok=True)
             self.model.save_pretrained(path, state_dict=state_dict)
             self.tokenizer.save_pretrained(path)
+            if hasattr(self, "processor") and self.processor is not None:
+                self.processor.save_pretrained(path)
             if self.config.trainer.default_hdfs_dir:
                 hdfs_io.makedirs(self.config.trainer.default_hdfs_dir, exist_ok=True)
                 hdfs_io.copy(src=path, dst=self.config.trainer.default_hdfs_dir, dirs_exist_ok=True)
@@ -602,6 +606,7 @@ class FSDPSFTTrainer:
                 project_name=self.config.trainer.project_name,
                 experiment_name=self.config.trainer.experiment_name,
                 default_backend=self.config.trainer.logger,
+                config=OmegaConf.to_container(self.config, resolve=True)
             )
 
         global_step = 0
@@ -669,7 +674,7 @@ class FSDPSFTTrainer:
             self.save_checkpoint(step=global_step)
 
 
-@hydra.main(config_path="../trainer/config/", config_name="sft_trainer", version_base=None)
+@hydra.main(config_path="../../verl/trainer/config/", config_name="sft_trainer", version_base=None)
 def main(config):
     device_name = get_device_name()
     local_rank, rank, world_size = initialize_global_process_group()
@@ -680,11 +685,11 @@ def main(config):
     # build tokenizer and datasets first
     local_model_path = copy_to_local(src=config.model.partial_pretrain, verbose=True)
     tokenizer = hf_tokenizer(local_model_path, trust_remote_code=config.model.trust_remote_code)
-    processor = hf_processor(local_model_path, **config.data.get("processor", {}))
+    processor = hf_processor(local_model_path, **config.get("processor", {}))
     train_dataset = create_sft_dataset(config.data.train_files, config.data, tokenizer, processor)
     val_dataset = create_sft_dataset(config.data.val_files, config.data, tokenizer, processor)
 
-    trainer = FSDPSFTTrainer(config=config, device_mesh=device_mesh, ulysses_device_mesh=ulysses_device_mesh, tokenizer=tokenizer, train_dataset=train_dataset, val_dataset=val_dataset)
+    trainer = FSDPSFTTrainer(config=config, device_mesh=device_mesh, ulysses_device_mesh=ulysses_device_mesh, tokenizer=tokenizer, processor=processor, train_dataset=train_dataset, val_dataset=val_dataset)
 
     trainer.fit()
 

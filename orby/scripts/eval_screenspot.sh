@@ -7,8 +7,8 @@ set -e
 
 # Default values
 DATASET_VERSION="screenspot"
-MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
-REWARD_FILE=orby/reward/screenspot.py
+MODEL_PATH=/root/experiments/sft/uground/global_step_30/
+REWARD_FILE=/workspace/verl/orby/reward/screenspot.py
 REWARD_FN=reward_func
 OUTPUT_FILE=result-test-output-1.parquet
 

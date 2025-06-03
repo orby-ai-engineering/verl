@@ -65,6 +65,10 @@ if __name__ == "__main__":
 
     dataset = dataset["train"]
 
+    dataset = dataset.train_test_split(train_size=0.8, seed=42)
+    train_dataset = dataset['train']
+    test_dataset = dataset['test']
+
     def make_map_fn(split):
         def process_fn(example, idx):
             image = example.pop("image")
@@ -129,13 +133,19 @@ if __name__ == "__main__":
 
         return process_fn
 
-    dataset = dataset.map(function=make_map_fn("train"), with_indices=True, num_proc=16)
-    dataset = dataset.cast_column("images", Sequence(ImageData()))
+    
 
+    train_dataset = train_dataset.map(function=make_map_fn("train"), with_indices=True, num_proc=16)
+    train_dataset = train_dataset.cast_column("images", Sequence(ImageData()))
+
+    test_dataset = test_dataset.map(function=make_map_fn("test"), with_indices=True, num_proc=16)
+    test_dataset = test_dataset.cast_column("images", Sequence(ImageData()))
+    
     local_dir = os.path.expanduser(args.local_dir)
     os.makedirs(local_dir, exist_ok=True)
 
-    dataset.to_parquet(os.path.join(local_dir, f"{args.output_filename}.parquet"))
+    train_dataset.to_parquet(os.path.join(local_dir, "train.parquet"))
+    test_dataset.to_parquet(os.path.join(local_dir, "test.parquet"))
 
     if args.hdfs_dir is not None:
         makedirs(args.hdfs_dir)
