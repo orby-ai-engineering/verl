@@ -26,20 +26,21 @@ command: |
   pip install sgl-kernel
   pip install boto3
 
-  # Downloads the model
-  python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
-  # Install verl lib: https://verl.readthedocs.io/en/latest/start/install.html
-  pip3 install -e .[vllm]
-
-  # Create datasets
-  python examples/data_preprocess/geo3k.py
-
   # Set environment variables
   export HYDRA_FULL_ERROR=1
   INTERFACE=$(ip route | grep default | awk '{print $5}' | head -1)
   echo "Using interface: $INTERFACE"
   export GLOO_SOCKET_IFNAME=$INTERFACE
   export HF_HUB_ENABLE_HF_TRANSFER=1
+
+  # Downloads the model
+  python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
+
+  # Install verl lib: https://verl.readthedocs.io/en/latest/start/install.html
+  pip3 install -e .[vllm]
+
+  # Create datasets
+  python examples/data_preprocess/geo3k.py
 
   # Start ray cluster and wait for all nodes
   bash orby/scripts/run_ray.sh $NUM_NODES
@@ -57,7 +58,7 @@ command: |
             data.train_files=$HOME/data/geo3k/train.parquet \
             data.val_files=$HOME/data/geo3k/test.parquet \
             data.train_batch_size=512 \
-            +data.max_prompt_length=1024 \
+            data.max_prompt_length=1024 \
             data.max_response_length=2048 \
             data.filter_overlong_prompts=True \
             data.truncation='error' \
