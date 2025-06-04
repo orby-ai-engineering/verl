@@ -8,6 +8,8 @@ import numpy as np
 
 from orby.utils.action_utils import get_action_info, extract_content_by_tags
 
+GAUSSIAN_DISTANCE_SIGMA = 5
+
 
 class UISubtaskRewardScorer:
     """Reward scorer for UI Subtask task."""
@@ -168,7 +170,7 @@ class UISubtaskRewardScorer:
         for pred_coord, gt_coord in zip(pred_coordinates, gt_coordinates):
             # Use a Gaussian similarity score with a sigma of 2
             # TODO: if we can get the bounding box information, investigate which reward is better
-            sigma = 2
+            sigma = GAUSSIAN_DISTANCE_SIGMA
             pred = np.asarray(pred_coord)
             truth = np.asarray(gt_coord)
             d2 = np.sum((pred - truth) ** 2)
