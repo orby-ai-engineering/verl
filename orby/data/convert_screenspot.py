@@ -129,24 +129,22 @@ if __name__ == "__main__":
 
             # Create prompt based on selected format
             if args.prompt_format == "original":
-                example = {
-                    "prompt": [
-                        {
-                            "role": "user",
-                            "content": (
-                                "Map the user instruction to the coordinates in the UI image. "
-                                "Think step by step before you answer. The reasoning process MUST BE enclosed within <think> </think> tags. "
-                                "The coordinate x and y MUST BE put in <answer> </answer> tags, separeted by space. "
-                                "<image> Instruction: " + instruction
-                            ),
-                        },
-                    ],
-                }
+                data["prompt"] = [
+                    {
+                        "role": "user",
+                        "content": (
+                            "Map the user instruction to the coordinates in the UI image. "
+                            "Think step by step before you answer. The reasoning process MUST BE enclosed within <think> </think> tags. "
+                            "The coordinate x and y MUST BE put in <answer> </answer> tags, separeted by space. "
+                            "<image> Instruction: " + instruction
+                        ),
+                    },
+                ]
+
             else:  # qwen format
                 # Convert image to base64
                 buffered = io.BytesIO()
                 image.save(buffered, format="PNG")
-                img_str = base64.b64encode(buffered.getvalue()).decode()
 
                 prompt = NousFnCallPrompt().preprocess_fncall_messages(
                     messages=[
@@ -178,10 +176,8 @@ if __name__ == "__main__":
                     content = "".join(m["text"] for m in message["content"])
                     message["content"] = content
 
-                example = {
-                    "prompt": prompt,
-                    "format": "qwen",
-                }
+                data["prompt"] = prompt
+                data["reward_model"]["format"] = "qwen"
 
             data.update(example)
             return data

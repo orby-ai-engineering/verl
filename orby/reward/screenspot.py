@@ -288,8 +288,7 @@ def reward_func(data_source, solution_str, ground_truth, extra_info=None):
         from orby.reward import screenspot
 
         # Check if the response contains tool call format
-        # TODO: add a flag to the dataset to indicate the format.
-        if "<tool_call>" in solution_str:
+        if extra_info and extra_info.get("format") == "qwen":
             return screenspot.compute_qwen_score(solution_str, ground_truth)
         else:
             return screenspot.compute_score(solution_str, ground_truth)

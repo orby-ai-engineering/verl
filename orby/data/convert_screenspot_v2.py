@@ -121,22 +121,35 @@ def process_json_file(json_path, image_dir, split, prompt_format="original"):
             "data_type": example["data_type"],
             "device": device,
         }
+        data = {
+            "data_source": "screenspot_v2",
+            "images": [img_byte_arr],
+            "ability": "vision",
+            "reward_model": {
+                "style": "rule",
+                "ground_truth": ground_truth,
+            },
+            "extra_info": {
+                "split": split,
+                "index": idx,
+                "question": example["instruction"],
+                "bounding_box": bbox,
+            },
+        }
 
         # Create prompt based on selected format
         if prompt_format == "original":
-            prompt_dict = {
-                "prompt": [
-                    {
-                        "role": "user",
-                        "content": (
-                            "Map the user instruction to the coordinates in the UI image. "
-                            "Think step by step before you answer. The reasoning process MUST BE enclosed within <think> </think> tags. "
-                            "The coordinate x and y MUST BE put in <answer> </answer> tags, separeted by space. "
-                            "<image> Instruction: " + example["instruction"]
-                        ),
-                    },
-                ]
-            }
+            data["prompt"] = [
+                {
+                    "role": "user",
+                    "content": (
+                        "Map the user instruction to the coordinates in the UI image. "
+                        "Think step by step before you answer. The reasoning process MUST BE enclosed within <think> </think> tags. "
+                        "The coordinate x and y MUST BE put in <answer> </answer> tags, separeted by space. "
+                        "<image> Instruction: " + example["instruction"]
+                    ),
+                },
+            ]
         else:  # qwen format
             prompt = NousFnCallPrompt().preprocess_fncall_messages(
                 messages=[
@@ -166,24 +179,9 @@ def process_json_file(json_path, image_dir, split, prompt_format="original"):
                 # Replace the list of content to a string.
                 content = "".join(m["text"] for m in message["content"])
                 message["content"] = content
-            prompt_dict = {"prompt": prompt, "format": "qwen"}
+            data["prompt"] = prompt
+            data["reward_model"]["format"] = "qwen"
 
-        data = {
-            "data_source": "screenspot_v2",
-            "images": [img_byte_arr],
-            "ability": "vision",
-            "reward_model": {
-                "style": "rule",
-                "ground_truth": ground_truth,
-            },
-            "extra_info": {
-                "split": split,
-                "index": idx,
-                "question": example["instruction"],
-                "bounding_box": bbox,
-            },
-        }
-        data.update(prompt_dict)
         processed_examples.append(data)
 
     return processed_examples
