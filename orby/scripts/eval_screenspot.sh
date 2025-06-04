@@ -7,7 +7,7 @@ set -e
 
 # Default values
 DATASET_VERSION="screenspot"
-MODEL_PATH=/root/experiments/sft/uground/global_step_30/
+MODEL_PATH=/root/experiments/sft/uground/global_step_500/
 REWARD_FILE=/workspace/verl/orby/reward/screenspot.py
 REWARD_FN=reward_func
 OUTPUT_FILE=result-test-output-1.parquet

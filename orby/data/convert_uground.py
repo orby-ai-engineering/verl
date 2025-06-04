@@ -109,9 +109,6 @@ if __name__ == "__main__":
                     {
                         "role": "user",
                         "content": (
-                            "Map the user instruction to the coordinates in the UI image. "
-                            "Think step by step before you answer. The reasoning process MUST BE enclosed within <think> </think> tags. "
-                            "The coordinate x and y MUST BE put in <answer> </answer> tags, separeted by space. "
                             "<image> Instruction: " + instruction
                         ),
                     },
