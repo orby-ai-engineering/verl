@@ -321,6 +321,14 @@ def reward_func(data_source, solution_str, ground_truth, extra_info=None):
     if data_source == "subtask_direct_distill":
         from orby.reward import subtask
 
-        return subtask.compute_score(solution_str, ground_truth)
+        # Get the full scoring result
+        result = subtask.compute_score(solution_str, ground_truth)
+        
+        # If in training mode (extra_info contains training=True), only return the main score
+        if extra_info and extra_info.get("training", False):
+            return {"score": result["score"]}
+        
+        # In evaluation mode, return all scores
+        return result
     else:
         raise NotImplementedError
