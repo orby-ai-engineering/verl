@@ -69,7 +69,7 @@ def process_item(reward_fn, data_source, response_lst, reward_data):
     if "format" in reward_data:
         extra_info["format"] = reward_data["format"]
     score_lst = [
-        reward_fn(data_source, r, ground_truth, extra_info, extra_info)
+        reward_fn(data_source, r, ground_truth, extra_info)
         for r in response_lst
     ]
     df = pd.DataFrame(score_lst)
