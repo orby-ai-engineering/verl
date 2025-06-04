@@ -128,7 +128,7 @@ def process_json_file(json_path, image_dir, split, prompt_format="original"):
 
         # Create prompt based on selected format
         if prompt_format == "original":
-            example = {
+            prompt_dict = {
                 "prompt": [
                     {
                         "role": "user",
@@ -170,7 +170,7 @@ def process_json_file(json_path, image_dir, split, prompt_format="original"):
                 # Replace the list of content to a string.
                 content = "".join(m["text"] for m in message["content"])
                 message["content"] = content
-            example = {"prompt": prompt, "format": "qwen"}
+            prompt_dict = {"prompt": prompt, "format": "qwen"}
 
         data = {
             "data_source": "screenspot_pro",
@@ -190,7 +190,7 @@ def process_json_file(json_path, image_dir, split, prompt_format="original"):
                 "ui_type": example["ui_type"],
             },
         }
-        data.update(example)
+        data.update(prompt_dict)
         processed_examples.append(data)
 
     return processed_examples
