@@ -18,8 +18,6 @@ Preprocess the Screenspot dataset to parquet format
 import argparse
 import io
 import os
-import logging
-import base64
 
 import datasets
 from datasets import Sequence
@@ -142,10 +140,6 @@ if __name__ == "__main__":
                 ]
 
             else:  # qwen format
-                # Convert image to base64
-                buffered = io.BytesIO()
-                image.save(buffered, format="PNG")
-
                 prompt = NousFnCallPrompt().preprocess_fncall_messages(
                     messages=[
                         Message(
