@@ -48,8 +48,7 @@ from torchdata.stateful_dataloader import StatefulDataLoader
 
 import verl.utils.hdfs_io as hdfs_io
 from verl.utils.dataset import SFTDataset
-#from verl.utils.dataset.multiturn_sft_dataset import MultiTurnSFTDataset
-from orby.dataset.rl_dataset_sft import collate_fn
+from orby.dataset.sft_dataset import collate_fn
 from verl.utils.debug import log_gpu_memory_usage
 from verl.utils.distributed import initialize_global_process_group
 from verl.utils.fs import copy_to_local
@@ -75,7 +74,7 @@ logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_SFT_LOGGING_LEVEL", "WARN"))
 
 
-def create_rl_dataset(data_paths, data_config, tokenizer, processor):
+def create_sft_multimodal_dataset(data_paths, data_config, tokenizer, processor):
     """Create a dataset.
 
     Arguments:
@@ -88,7 +87,7 @@ def create_rl_dataset(data_paths, data_config, tokenizer, processor):
     """
     from torch.utils.data import Dataset
 
-    from verl.utils.dataset.rl_dataset import RLHFDataset
+    from orby.dataset.sft_dataset import SFTDataset
 
     if "custom_cls" in data_config and data_config.custom_cls.get("path", None) is not None:
         from verl.utils.import_utils import load_extern_type
@@ -97,7 +96,7 @@ def create_rl_dataset(data_paths, data_config, tokenizer, processor):
         if not issubclass(dataset_cls, Dataset):
             raise TypeError(f"The custom dataset class '{data_config.custom_cls.name}' from '{data_config.custom_cls.path}' must inherit from torch.utils.data.Dataset")
     else:
-        dataset_cls = RLHFDataset
+        dataset_cls = SFTDataset
     print(f"Using dataset class: {dataset_cls.__name__}")
 
     dataset = dataset_cls(
@@ -742,9 +741,9 @@ def main(config):
 
 def create_sft_dataset(data_paths, data_config, tokenizer, processor=None):
 
-    # if multi-modal dataset, use the RLHF dataset that has support for multi-modal inputs
+    # if multi-modal dataset, use the modified RLHF dataset from VERL for SFT that has support for multi-modal inputs
     if data_config.get("image_key", None) is not None:
-        return create_rl_dataset(data_paths, data_config, tokenizer, processor)
+        return create_sft_multimodal_dataset(data_paths, data_config, tokenizer, processor)
     """Create a dataset."""
     # build dataset
     # First check if a custom dataset class is specified

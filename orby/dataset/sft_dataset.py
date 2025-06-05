@@ -55,9 +55,11 @@ def collate_fn(data_list: list[dict]) -> dict:
     return {**tensors, **non_tensors}
 
 
-class RLHFDataset(Dataset):
+class SFTDataset(Dataset):
     """
     We assume the dataset contains a column that contains prompts and other information
+
+    Note that this dataset is a "copy" or RLHFDataset from verl, and has been modified for SFT
     """
 
     def __init__(
