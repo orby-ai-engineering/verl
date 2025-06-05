@@ -93,18 +93,18 @@ def main(config):
     )
     responses = dataset[config.data.response_key]
     data_sources = dataset[config.data.data_source_key]
-    #reward_model_data = dataset[config.data.reward_model_key]
+    reward_model_data = dataset[config.data.reward_model_key]
 
     # Reconstruct reward model data from flattened columns
-    reward_model_data = []
-    for _, row in dataset.iterrows():
-        reward_model_data.append({
-            "ground_truth": {
-                "action": row["reward_model.ground_truth.action"],
-                "style": row["reward_model.ground_truth.style"],
-                "thinking": row["reward_model.ground_truth.thinking"]
-            }
-        })
+    #reward_model_data = []
+    #for _, row in dataset.iterrows():
+    #    reward_model_data.append({
+    #        "ground_truth": {
+    #            "action": row["reward_model.ground_truth.action"],
+    #            "style": row["reward_model.ground_truth.style"],
+    #            "thinking": row["reward_model.ground_truth.thinking"]
+    #        }
+    #    })
 
     total = len(dataset)
 
