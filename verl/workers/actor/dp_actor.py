@@ -270,7 +270,11 @@ class DataParallelPPOActor(BasePPOActor):
         has_multi_modal_inputs = "multi_modal_inputs" in data.non_tensor_batch.keys()
 
         if has_multi_modal_inputs:
+            # TODO: remove this
+            print(f"!!!!!!!!!!!!!!!data.batch.batch_size[0]: {data.batch.batch_size[0]}!!!!!!!!!!!!!!!")
+            print(f"!!!!!!!!!!!!!!!micro_batch_size: {micro_batch_size}!!!!!!!!!!!!!!!")
             num_micro_batches = data.batch.batch_size[0] // micro_batch_size
+            print(f"!!!!!!!!!!!!!!!num_micro_batches: {num_micro_batches}!!!!!!!!!!!!!!!")
             non_tensor_select_keys = ["multi_modal_inputs"]
             micro_batches = data.select(select_keys, non_tensor_select_keys).chunk(num_micro_batches)
         elif use_dynamic_bsz:
