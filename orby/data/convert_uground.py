@@ -103,6 +103,10 @@ if __name__ == "__main__":
                 "bbox": bbox,
             }
 
+            center_x = (bbox[0] + bbox[2]) / 2
+            center_y = (bbox[1] + bbox[3]) / 2
+
+
             data = {
                 "data_source": "uground",
                 "prompt": [
@@ -112,6 +116,12 @@ if __name__ == "__main__":
                             "<image> Instruction: " + instruction
                         ),
                     },
+                ],
+                 "response": [
+                    {
+                        "role": "assistant",
+                        "content": f"<answer>{center_x:.0f} {center_y:.0f}</answer>"
+                    }
                 ],
                 "images": [image],
                 "ability": "vision",
