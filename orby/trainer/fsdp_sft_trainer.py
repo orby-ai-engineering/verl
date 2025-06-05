@@ -1,4 +1,3 @@
-
 # Copyright 2024 Bytedance Ltd. and/or its affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -75,7 +74,6 @@ elif is_npu_available:
 
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_SFT_LOGGING_LEVEL", "WARN"))
-torch.set_printoptions(threshold=float('inf'), linewidth=200)
 
 
 def extract_step(path):
@@ -144,7 +142,6 @@ class FSDPSFTTrainer:
         config = self.config
         self.train_dataset, self.val_dataset = train_dataset, val_dataset
 
-        #print(f"Dataset type: {type(self.train_dataset)}")
         
         # build dataloader
         # Use data parallel rank and size instead of global rank and world size
@@ -204,13 +201,6 @@ class FSDPSFTTrainer:
                 pin_memory=True,
                 drop_last=True,
             )
-            #if self.device_mesh.get_rank() == 0:
-            #    print(f"Train dataset type: {type(self.train_dataset)}")
-            #    print(f"Train dataloader type: {type(self.train_dataloader)}")
-                # Get a sample batch to see its structure
-            #    sample_batch = next(iter(self.train_dataloader))
-            #    print(f"Sample batch type: {type(sample_batch)}")
-            #    print(f"Sample batch keys: {list(sample_batch.keys())}")
 
     def _build_model_optimizer(self):
         # TODO (zhangchi.usc1992):
@@ -241,7 +231,7 @@ class FSDPSFTTrainer:
             if self.config.data.image_key is not None:
                 model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                             local_model_path,
-                            #device_map=torch.cuda.current_device(),
+                            #device_map=torch.cuda.current_device(), doesn't work with meta tensors 
                             attn_implementation="sdpa"
                         )
             else:
@@ -338,11 +328,6 @@ class FSDPSFTTrainer:
 
     def _compute_loss_and_backward(self, batch, do_backward=True):
         """Compute loss with optional sequence parallelism and remove padding features"""
-        #print(f"Batch type: {type(batch)}")
-        #print(f"Batch keys: {list(batch.keys()) if hasattr(batch, 'keys') else 'No keys method'}")
-        #if hasattr(batch, 'batch'):
-        #    print(f"DataProto batch keys: {list(batch.batch.keys())}")
-        #    print(f"DataProto non_tensor_batch keys: {list(batch.non_tensor_batch.keys())}")
         
         use_sp = self.use_remove_padding and self.config.ulysses_sequence_parallel_size > 1
 
@@ -352,7 +337,6 @@ class FSDPSFTTrainer:
         position_ids = batch["position_ids"].to(self.device_name)
         raw_prompt_ids = batch["raw_prompt_ids"]
         multi_modal_inputs = batch.get("multi_modal_inputs", {})
-        #print(f"Input IDs: {input_ids}")
         if position_ids.dim() == 3:
             # When processing multimodal data (text + images), Qwen2.5-VL uses 3D position embeddings
             # where each token gets 3 coordinates: [t, h, w] representing temporal, height, width dimensions.
@@ -375,19 +359,6 @@ class FSDPSFTTrainer:
             loss_mask = attention_mask.clone()  # (batch_size, seq_len)
             
             # Create a mask for prompt tokens to exclude from loss
-            # Get the length of each raw prompt
-            #raw_prompt_lengths = torch.tensor([len(sample) for sample in raw_prompt_ids], 
-            #                                device=attention_mask.device)
-            
-            #first_non_padded_token_position = torch.argmax(attention_mask.float(), dim=1) # account for left padding in posprocessing in rl_datasets.py
-            
-            # Calculate prompt end position relative to actual content start
-            #prompt_end_position = first_non_padded_token_position + raw_prompt_lengths - 1
-            #print(f"Raw prompt lengths: {raw_prompt_lengths}")
-            #print(f"First non-padded position: {first_non_padded_token_position}")
-            #print(f"Prompt end position: {prompt_end_position}")
-            #print(f"Sequence length: {seq_len}")
-            #print(f"Attention mask sum: {attention_mask.sum(dim=1)}")
             # Locate where assistant responses begin by finding the "<|im_start|>assistant" token sequence
             # This ensures we only train on actual response tokens, not prompt or image tokens
             assistant_token_ids = torch.tensor(
@@ -395,8 +366,6 @@ class FSDPSFTTrainer:
                 device=attention_mask.device
             )
 
-            # Use vectorized search to find assistant token positions across all sequences in the batch
-            # This avoids the inefficiency of nested loops while handling variable-length sequences
             assistant_len = len(assistant_token_ids)
             prompt_end_position = torch.zeros(batch_size, device=attention_mask.device, dtype=torch.long)
 
@@ -420,8 +389,6 @@ class FSDPSFTTrainer:
             # Mask out prompt tokens (everything before the prompt_end_position)
             prompt_mask = position_indices < prompt_end_position.unsqueeze(1)
             loss_mask = loss_mask.masked_fill(prompt_mask, 0)
-            #print(f"The loss mask is {loss_mask}")
-            #print(f"Loss mask after prompt masking sum: {loss_mask.sum()}")
 
             # Mask out the last token of each sequence
             # Find the last valid token position for each sequence
@@ -430,12 +397,9 @@ class FSDPSFTTrainer:
             # Create mask for last tokens
             last_token_mask = position_indices == last_token_positions.unsqueeze(1)
             loss_mask = loss_mask.masked_fill(last_token_mask, 0)
-            #print(f"Last token positions: {last_token_positions}")
-            #print(f"Loss mask after last token masking sum: {loss_mask.sum()}")
 
             # Remove last column and flatten
             loss_mask = loss_mask[:, :-1].reshape(-1).to(self.device_name)
-            #print(f"Final loss mask sum after reshape: {loss_mask.sum()}")
         loss_fct = nn.CrossEntropyLoss(reduction="none")
 
         # Context manager for sequence parallel if needed
@@ -450,38 +414,6 @@ class FSDPSFTTrainer:
                     "position_ids": position_ids,
                     "use_cache": False
                 }
-                #print(f"Multi-modal inputs type: {type(multi_modal_inputs)}")
-                #print(f"Multi-modal inputs length: {len(multi_modal_inputs) if hasattr(multi_modal_inputs, '__len__') else 'N/A'}")
-                #if hasattr(multi_modal_inputs, 'data'):
-                    #print(f"Multi-modal data length: {len(multi_modal_inputs.data)}")
-                    #for i, item in enumerate(multi_modal_inputs.data[:2]):  # Print first 2 items
-                        #print(f"Item {i} keys: {list(item.keys()) if isinstance(item, dict) else type(item)}")
-                # For multimodal inputs, collect all pixel_values and image_grid dimensions
-                #if len(multi_modal_inputs) > 0 and hasattr(multi_modal_inputs, 'data'):
-                    # Collect all pixel_values and image_grid_thw
-                #    pixel_values_list = []
-                #    image_grid_thw_list = []
-                    
-                #    for item in multi_modal_inputs.data:
-                #        if isinstance(item, dict):
-                #            if 'pixel_values' in item:
-                #                pixel_values_list.append(item['pixel_values'])
-                #            if 'image_grid_thw' in item:
-                #                image_grid_thw_list.append(item['image_grid_thw'])
-                #    if pixel_values_list:
-                        # Concatenate all pixel values and add batch dimension
-                #        concatenated_pixel_values = torch.cat(pixel_values_list, dim=0)
-                #        model_kwargs['pixel_values'] = concatenated_pixel_values.unsqueeze(0).cuda()
-
-                    #if image_grid_thw_list:
-                        # Concatenate all image grid info
-                    #    concatenated_image_grid_thw = torch.cat(image_grid_thw_list, dim=0)
-                    #    model_kwargs['image_grid_thw'] = concatenated_image_grid_thw.cuda()
-                
-                #print(f"Pixel values shape: {concatenated_pixel_values.shape if pixel_values_list else 'None'}")
-                #print(f"Image grid shape: {concatenated_image_grid_thw.shape if image_grid_thw_list else 'None'}")
-                #print(f"Input IDs shape: {input_ids.shape}")
-                #print(f"Loss mask sum: {loss_mask.sum().item()}")                    
                 multimodal_kwargs = {}
                 if len(multi_modal_inputs) > 0 and hasattr(multi_modal_inputs, 'data'):
                     for key in multi_modal_inputs.data[0].keys():
@@ -560,25 +492,12 @@ class FSDPSFTTrainer:
         self.fsdp_model.train()
 
         log_gpu_memory_usage("Before optimizer zero_grad", logger=logger)
-        #print(f"Input batch type: {type(batch)}")
-        #print(f"Batch keys: {list(batch.keys())}")
         self.optimizer.zero_grad()
 
         log_gpu_memory_usage("After optimizer zero_grad", logger=logger)
 
         micro_batches = self._split_batch_with_indices(batch, self.config.data.micro_batch_size_per_gpu)
-        
-
         n_micro_batches = len(micro_batches)
-        #print(f"Number of micro-batches: {n_micro_batches}")
-        #print(f"Micro-batch sizes: {[mb.batch_size[0] for mb in micro_batches]}")
-        #print(f"Raw prompt length: {len(batch['raw_prompt_ids'][0])}")
-        #print(f"Total input length: {batch['input_ids'].shape[1]}")
-        #print(f"Difference (response length): {batch['input_ids'].shape[1] - len(batch['raw_prompt_ids'][0])}")
-        #print(f"Raw prompt: {self.tokenizer.decode(batch['raw_prompt_ids'][0])}")
-        #print(f"Full sequence: {self.tokenizer.decode(batch['input_ids'][0][:100])}...")  # First 100 tokens
-        #print(f"Response part: {self.tokenizer.decode(batch['input_ids'][0][39:100])}...")  # Response tokens
-        #print(f"Loss mask sum: {batch.get('loss_mask', torch.zeros_like(batch['input_ids'])).sum()}")
         step_loss = 0
         for micro_batch in micro_batches:
             loss = self._compute_loss_and_backward(batch=micro_batch) / n_micro_batches
@@ -617,14 +536,8 @@ class FSDPSFTTrainer:
         Split batch into micro-batches for gradient accumulation while preserving text-image correspondence.
         by pairing each text sample with only its corresponding images.
         """
-
-        
-        
         batch_size = batch.batch_size[0]
         micro_batches = []
-        #print(f"Original batch size: {batch_size}")
-        #print(f"Micro batch size: {micro_batch_size}")
-        #print(f"Will create {(batch_size + micro_batch_size - 1) // micro_batch_size} micro-batches")
         for start_idx in range(0, batch_size, micro_batch_size):
             end_idx = min(start_idx + micro_batch_size, batch_size)
             indices = list(range(start_idx, end_idx))
@@ -717,12 +630,7 @@ class FSDPSFTTrainer:
                 desc=f"Epoch {epoch + 1}/{self.config.trainer.total_epochs}",
             ):
                 global_step += 1
-
-                #print(f"Data from dataloader type: {type(data)}")
-                #print(f"Data keys: {list(data.keys())}")
                 data = TensorDict(data, batch_size=self.config.data.train_batch_size).to(self.device_name)
-                #print(f"After TensorDict conversion: {type(data)}")
-
                 metric = self.training_step(data)
                 if rank == 0:
                     tracking.log(data=metric, step=global_step)

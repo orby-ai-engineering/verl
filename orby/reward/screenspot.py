@@ -80,7 +80,7 @@ class ScreenspotRewardScorer:
                 - details: Dictionary with individual check results
         """
         # Check 1: Format validation
-        #has_thinking = bool(self.thinking_pattern.search(prediction))
+        has_thinking = bool(self.thinking_pattern.search(prediction))
         answer_match = self.answer_pattern.search(prediction)
         has_answer = bool(answer_match)
 
@@ -97,7 +97,7 @@ class ScreenspotRewardScorer:
             coordinates_correct = self._check_coordinates_in_bbox(pred_x, pred_y, bbox)
 
         # Calculate overall score
-        format_score = 1.0 if has_answer else 0.0
+        format_score = 1.0 if (has_thinking and has_answer) else 0.0
         coord_score = 1.0 if coordinates_correct else 0.0
 
         # Weight the scores (can be adjusted based on importance)
@@ -109,7 +109,7 @@ class ScreenspotRewardScorer:
 
         details = {
             "score": overall_score,
-            "has_thinking": False,
+            "has_thinking": has_thinking,
             "has_answer": has_answer,
             "format_score": format_score,
             "coordinates_predicted": (
@@ -120,7 +120,7 @@ class ScreenspotRewardScorer:
             "coordinates_ground_truth": str(bbox),
             "coordinates_score": coord_score,
             f"{device}/{data_type}/score": overall_score,
-            f"{device}/{data_type}/has_thinking": False,
+            f"{device}/{data_type}/has_thinking": has_thinking,
             f"{device}/{data_type}/has_answer": has_answer,
             f"{device}/{data_type}/format_score": format_score,
             f"{device}/{data_type}/coordinates_score": coord_score,
@@ -149,7 +149,7 @@ def compute_score(prediction: str, ground_truth: Dict) -> Dict:
 
 
 def reward_func(data_source, solution_str, ground_truth, extra_info=None):
-    if data_source in ["screenspot", "screenspot_v2", "screenspot_pro"]:
+    if data_source in ["screenspot"]:
         from orby.reward import screenspot
 
         return screenspot.compute_score(solution_str, ground_truth)

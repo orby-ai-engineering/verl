@@ -1,5 +1,5 @@
-YOUR_EMAIL="rishu@orby.ai"
-YOUR_NAME="Rishu Garg"
+YOUR_EMAIL=""
+YOUR_NAME=""
 if [ -z "$YOUR_EMAIL" ] || [ -z "$YOUR_NAME" ]; then
     echo "Please set YOUR_EMAIL and YOUR_NAME in the script"
     exit 1
@@ -37,4 +37,3 @@ pip3 install -e .[vllm]
 # aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/test/reward_model.parquet ~/data/subtask_direct_distill/mix/test/reward_model.parquet
 # aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/train/executor_block512mb/part-00000-tid-8818964477925489584-78825fd1-c751-4bef-9f26-0c77bbdb2020-258-1-c000.snappy.parquet ~/data/subtask_direct_distill/mix/train/executor.parquet
 # aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/train/reward_model_block512mb/part-00000-tid-8036795855418196458-5aac9d57-8404-4b87-b9f1-088ad4820f8f-136-1-c000.snappy.parquet ~/data/subtask_direct_distill/mix/train/reward_model.parquet
-
