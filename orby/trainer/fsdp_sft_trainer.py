@@ -142,7 +142,6 @@ class FSDPSFTTrainer:
         config = self.config
         self.train_dataset, self.val_dataset = train_dataset, val_dataset
 
-        
         # build dataloader
         # Use data parallel rank and size instead of global rank and world size
 
@@ -328,7 +327,6 @@ class FSDPSFTTrainer:
 
     def _compute_loss_and_backward(self, batch, do_backward=True):
         """Compute loss with optional sequence parallelism and remove padding features"""
-        
         use_sp = self.use_remove_padding and self.config.ulysses_sequence_parallel_size > 1
 
         # Move inputs to GPU and prepare loss mask
@@ -337,6 +335,7 @@ class FSDPSFTTrainer:
         position_ids = batch["position_ids"].to(self.device_name)
         raw_prompt_ids = batch["raw_prompt_ids"]
         multi_modal_inputs = batch.get("multi_modal_inputs", {})
+
         if position_ids.dim() == 3:
             # When processing multimodal data (text + images), Qwen2.5-VL uses 3D position embeddings
             # where each token gets 3 coordinates: [t, h, w] representing temporal, height, width dimensions.
@@ -383,13 +382,11 @@ class FSDPSFTTrainer:
                 mask = matches & (prompt_end_position == 0)
                 prompt_end_position[mask] = i + assistant_len - 1
 
-            # Create position indices
             position_indices = torch.arange(seq_len, device=attention_mask.device).unsqueeze(0).expand(batch_size, -1)
             
             # Mask out prompt tokens (everything before the prompt_end_position)
             prompt_mask = position_indices < prompt_end_position.unsqueeze(1)
             loss_mask = loss_mask.masked_fill(prompt_mask, 0)
-
             # Mask out the last token of each sequence
             # Find the last valid token position for each sequence
             last_token_positions = attention_mask.sum(dim=1) - 1  # (batch_size,)
@@ -397,7 +394,6 @@ class FSDPSFTTrainer:
             # Create mask for last tokens
             last_token_mask = position_indices == last_token_positions.unsqueeze(1)
             loss_mask = loss_mask.masked_fill(last_token_mask, 0)
-
             # Remove last column and flatten
             loss_mask = loss_mask[:, :-1].reshape(-1).to(self.device_name)
         loss_fct = nn.CrossEntropyLoss(reduction="none")
@@ -492,6 +488,7 @@ class FSDPSFTTrainer:
         self.fsdp_model.train()
 
         log_gpu_memory_usage("Before optimizer zero_grad", logger=logger)
+
         self.optimizer.zero_grad()
 
         log_gpu_memory_usage("After optimizer zero_grad", logger=logger)
@@ -538,6 +535,7 @@ class FSDPSFTTrainer:
         """
         batch_size = batch.batch_size[0]
         micro_batches = []
+        
         for start_idx in range(0, batch_size, micro_batch_size):
             end_idx = min(start_idx + micro_batch_size, batch_size)
             indices = list(range(start_idx, end_idx))
