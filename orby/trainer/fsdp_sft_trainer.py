@@ -402,6 +402,7 @@ class FSDPSFTTrainer:
 
             # Slide a window across each position to find where assistant tokens start
             # We only need to check positions where the full assistant sequence could fit
+            #TODO: (RISHU) Find a more efficient way to do this
             for i in range(seq_len - assistant_len + 1):
                 # Compare assistant token sequence against all batch sequences simultaneously
                 # This leverages GPU parallelization for efficient batch processing
