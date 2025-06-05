@@ -46,11 +46,10 @@ from tqdm import tqdm
 from transformers import AutoConfig, AutoModelForCausalLM, PreTrainedModel, Qwen2_5_VLForConditionalGeneration
 from torchdata.stateful_dataloader import StatefulDataLoader
 
-from verl.trainer.main_ppo import create_rl_dataset
 import verl.utils.hdfs_io as hdfs_io
 from verl.utils.dataset import SFTDataset
 #from verl.utils.dataset.multiturn_sft_dataset import MultiTurnSFTDataset
-from verl.utils.dataset.rl_dataset import collate_fn
+from orby.dataset.rl_dataset_sft import collate_fn
 from verl.utils.debug import log_gpu_memory_usage
 from verl.utils.distributed import initialize_global_process_group
 from verl.utils.fs import copy_to_local
@@ -75,6 +74,40 @@ elif is_npu_available:
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_SFT_LOGGING_LEVEL", "WARN"))
 
+
+def create_rl_dataset(data_paths, data_config, tokenizer, processor):
+    """Create a dataset.
+
+    Arguments:
+        data_config: The data config.
+        tokenizer (Tokenizer): The tokenizer.
+        processor (Processor): The processor.
+
+    Returns:
+        dataset (Dataset): The dataset.
+    """
+    from torch.utils.data import Dataset
+
+    from verl.utils.dataset.rl_dataset import RLHFDataset
+
+    if "custom_cls" in data_config and data_config.custom_cls.get("path", None) is not None:
+        from verl.utils.import_utils import load_extern_type
+
+        dataset_cls = load_extern_type(data_config.custom_cls.path, data_config.custom_cls.name)
+        if not issubclass(dataset_cls, Dataset):
+            raise TypeError(f"The custom dataset class '{data_config.custom_cls.name}' from '{data_config.custom_cls.path}' must inherit from torch.utils.data.Dataset")
+    else:
+        dataset_cls = RLHFDataset
+    print(f"Using dataset class: {dataset_cls.__name__}")
+
+    dataset = dataset_cls(
+        data_files=data_paths,
+        tokenizer=tokenizer,
+        processor=processor,
+        config=data_config,
+    )
+
+    return dataset
 
 def extract_step(path):
     match = re.search(r"global_step_(\d+)", path)
@@ -535,7 +568,7 @@ class FSDPSFTTrainer:
         """
         batch_size = batch.batch_size[0]
         micro_batches = []
-        
+
         for start_idx in range(0, batch_size, micro_batch_size):
             end_idx = min(start_idx + micro_batch_size, batch_size)
             indices = list(range(start_idx, end_idx))
