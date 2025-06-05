@@ -66,11 +66,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--local_dir", default="~/data/screenspot")
     parser.add_argument("--hdfs_dir", default=None)
+    # Check below for the thinking format and qwen format.
+    # Thining format is a simple prompt that asks the model to think step by step
+    # and then answer the question.
+    # Qwen format implementation was referenced from
+    # https://github.com/QwenLM/Qwen2.5-VL/blob/main/cookbooks/computer_use.ipynb
     parser.add_argument(
         "--prompt_format",
-        choices=["original", "qwen"],
-        default="original",
-        help="Select prompt format: 'original' or 'qwen'",
+        choices=["thinking", "qwen"],
+        default="thinking",
+        help="Select prompt format: 'thinking' or 'qwen'",
     )
 
     args = parser.parse_args()
@@ -126,7 +131,7 @@ if __name__ == "__main__":
             }
 
             # Create prompt based on selected format
-            if args.prompt_format == "original":
+            if args.prompt_format == "thinking":
                 data["prompt"] = [
                     {
                         "role": "user",

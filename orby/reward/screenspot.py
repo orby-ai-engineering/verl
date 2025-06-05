@@ -25,6 +25,9 @@ class ScreenspotRewardScorer:
 
     def __init__(self):
         super().__init__()
+        # The thinking response is like this:
+        # <think>I think the answer is 1240 783.</think>
+        # <answer>1240 783</answer>
         self.thinking_pattern = re.compile(r"<think>(.*?)</think>", re.DOTALL)
         self.answer_pattern = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
         self.coordinate_pattern = re.compile(r"(\d*\.?\d+)\s+(\d*\.?\d+)")
@@ -135,6 +138,11 @@ class QwenScreenSpotScorer:
 
     def __init__(self):
         super().__init__()
+        # Qwen default response is like this:
+        # <tool_call>
+        # {"name": "computer_use", "arguments": {"action": "left_click", "coordinate": [1240, 783]}}
+        # </tool_call>
+        # We need to extract the coordinate from the tool call.
         self.tool_call_pattern = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
 
     def _extract_coordinates(

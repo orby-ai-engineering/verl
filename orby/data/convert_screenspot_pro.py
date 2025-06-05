@@ -75,7 +75,7 @@ def get_resized_ratio(image):
     return height_ratio, width_ratio
 
 
-def process_json_file(json_path, image_dir, split, prompt_format="original"):
+def process_json_file(json_path, image_dir, split, prompt_format="thinking"):
     """
     Process a single JSON file and return a list of processed examples.
 
@@ -83,7 +83,7 @@ def process_json_file(json_path, image_dir, split, prompt_format="original"):
         json_path: Path to the JSON file
         image_dir: Directory containing the images
         split: Dataset split name (e.g., "train", "test")
-        prompt_format: Format of the prompt ("original" or "qwen")
+        prompt_format: Format of the prompt ("thinking" or "qwen")
 
     Returns:
         List of processed examples
@@ -145,7 +145,7 @@ def process_json_file(json_path, image_dir, split, prompt_format="original"):
         }
 
         # Create prompt based on selected format
-        if prompt_format == "original":
+        if prompt_format == "thinking":
             data["prompt"] = [
                 {
                     "role": "user",
@@ -210,9 +210,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--prompt_format",
-        choices=["original", "qwen"],
-        default="original",
-        help="Select prompt format: 'original' or 'qwen'",
+        choices=["thinking", "qwen"],
+        default="thinking",
+        help="Select prompt format: 'thinking' or 'qwen'",
     )
 
     args = parser.parse_args()
