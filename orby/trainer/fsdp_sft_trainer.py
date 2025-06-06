@@ -366,7 +366,38 @@ class FSDPSFTTrainer:
         position_ids = batch["position_ids"].to(self.device_name)
         raw_prompt_ids = batch["raw_prompt_ids"]
         multi_modal_inputs = batch.get("multi_modal_inputs", {})
-
+        
+        # MINIMAL DEBUG: Log sequence lengths and memory
+        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+        #if rank == 0:  # Only log from rank 0
+        #    seq_len = input_ids.shape[-1]
+        #    batch_size = input_ids.shape[0]
+        #    allocated_gb = torch.cuda.memory_allocated() / 1e9
+        #    print(f"[DEBUG] Batch size: {batch_size}, Seq length: {seq_len}, GPU memory: {allocated_gb:.1f}GB")
+            
+            # Check if we have multimodal inputs
+        #    if len(multi_modal_inputs) > 0 and hasattr(multi_modal_inputs, 'data'):
+        #        total_images = sum(len(item.get('pixel_values', [])) if isinstance(item, dict) else 0 
+        #                         for item in multi_modal_inputs.data)
+        #        print(f"[DEBUG] Total images: {total_images}")
+        #    if len(multi_modal_inputs) > 0 and hasattr(multi_modal_inputs, 'data'):
+        #        print(f"[DEBUG] multi_modal_inputs.data length: {len(multi_modal_inputs.data)}")
+                
+         #       for i, item in enumerate(multi_modal_inputs.data):
+         #           print(f"[DEBUG] Item {i} type: {type(item)}")
+         #           if isinstance(item, dict):
+         #               print(f"[DEBUG] Item {i} keys: {list(item.keys())}")
+         #               if 'pixel_values' in item:
+         #                   pv_shape = item['pixel_values'].shape
+         #                   print(f"[DEBUG] Item {i} pixel_values shape: {pv_shape}")
+                            # This tells us: [num_images, channels, height, width]
+         #                   if len(pv_shape) >= 1:
+         #                       print(f"[DEBUG] Item {i} actual number of images: {pv_shape[0]}")
+                    
+                    # Only print first few items to avoid spam
+         #           if i >= 2:
+         #               print(f"[DEBUG] ... (showing only first 3 items)")
+         #               break
         if position_ids.dim() == 3:
             # When processing multimodal data (text + images), Qwen2.5-VL uses 3D position embeddings
             # where each token gets 3 coordinates: [t, h, w] representing temporal, height, width dimensions.
@@ -518,6 +549,14 @@ class FSDPSFTTrainer:
 
     def training_step(self, batch: TensorDict):
         self.fsdp_model.train()
+
+
+        # MINIMAL DEBUG: Check memory before processing
+        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+        #if rank == 0:
+        #    allocated_gb = torch.cuda.memory_allocated() / 1e9
+        #    print(f"[DEBUG] Start training step - GPU memory: {allocated_gb:.1f}GB")
+
 
         log_gpu_memory_usage("Before optimizer zero_grad", logger=logger)
 
@@ -731,6 +770,14 @@ def main(config):
     local_model_path = copy_to_local(src=config.model.partial_pretrain, verbose=True)
     tokenizer = hf_tokenizer(local_model_path, trust_remote_code=config.model.trust_remote_code)
     processor = hf_processor(local_model_path, **config.get("processor", {}))
+    #print(f"Processor type: {type(processor)}")
+    #print(f"Processor class: {processor.__class__.__name__}")
+
+    # Check what image processing parameters it has
+    #if hasattr(processor, 'image_processor'):
+    #    print(f"Image processor: {processor.image_processor}")
+    #    print(f"Image processor config: {processor.image_processor.__dict__}")
+    #input('stopped at processor')
     train_dataset = create_sft_dataset(config.data.train_files, config.data, tokenizer, processor)
     val_dataset = create_sft_dataset(config.data.val_files, config.data, tokenizer, processor)
 
