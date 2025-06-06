@@ -170,6 +170,7 @@ class UISubtaskRewardScorer:
         for pred_coord, gt_coord in zip(pred_coordinates, gt_coordinates):
             # Use a Gaussian similarity score with a sigma of 2
             # TODO: if we can get the bounding box information, investigate which reward is better
+            # TODO: explore other distance metrics that gives more signals when far away
             sigma = GAUSSIAN_DISTANCE_SIGMA
             pred = np.asarray(pred_coord)
             truth = np.asarray(gt_coord)
