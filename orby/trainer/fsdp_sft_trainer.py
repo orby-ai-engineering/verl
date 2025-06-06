@@ -47,7 +47,7 @@ from transformers import AutoConfig, AutoModelForCausalLM, PreTrainedModel, Qwen
 from torchdata.stateful_dataloader import StatefulDataLoader
 
 import verl.utils.hdfs_io as hdfs_io
-from orby.dataset.sft_dataset import collate_fn
+from orby.utils.dataset.sft_dataset import collate_fn
 from verl.utils.debug import log_gpu_memory_usage
 from verl.utils.distributed import initialize_global_process_group
 from verl.utils.fs import copy_to_local
@@ -86,7 +86,7 @@ def create_sft_multimodal_dataset(data_paths, data_config, tokenizer, processor)
     """
     from torch.utils.data import Dataset
 
-    from orby.dataset.sft_dataset import SFTDataset
+    from orby.utils.dataset.sft_dataset import SFTDataset
 
     if "custom_cls" in data_config and data_config.custom_cls.get("path", None) is not None:
         from verl.utils.import_utils import load_extern_type
