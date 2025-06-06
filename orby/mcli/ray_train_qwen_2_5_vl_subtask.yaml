@@ -21,7 +21,7 @@ command: |
   export MODEL_NAME=Qwen/Qwen2.5-VL-32B-Instruct
   export PROJECT_NAME=verl_grpo_example_subtask
   export EXPERIMENT_NAME=qwen2_5_vl_32b_subtask
-  export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask/experiment_2_Qwen-2.5-VL-32B_executor_reward_model_combined_68k_data_2_epochs
+  export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask/experiment_3_Qwen-2.5-VL-32B_e_rm_combined_68k_data_1_epoch
 
   # Set training environment variables
   export TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined.parquet
