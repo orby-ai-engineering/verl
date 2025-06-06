@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from tqdm import tqdm
 import pandas as pd
-
 import base64
 from io import BytesIO
+import ray
+from ray.util.multiprocessing import Pool
 
 @dataclass
 class Batch:
@@ -66,6 +67,7 @@ class DataLoader:
             ground_truth = batch_data['reward_model'].tolist()
             yield Batch(prompts=prompts, ground_truth=ground_truth)
 
+@ray.remote
 class VLLMClient:
     """Client for interacting with VLLM server"""
     def __init__(self, server_url: str):
@@ -74,41 +76,49 @@ class VLLMClient:
             api_key="not-needed"  # VLLM server doesn't require API key
         )
         
-    def generate(self, prompts: List[Any]) -> List[str]:
-        """Generate responses for a batch of prompts"""
-        responses = []
-        for prompt in prompts:
+    def generate(self, prompt: Any) -> str:
+        """Generate response for a single prompt"""
+        completion = self.client.chat.completions.create(
+            model="qwen25vl7b-2",  # Model name not needed as it's configured on server
+            messages=prompt,
+            temperature=0.7,
+            max_tokens=2048,
+            top_p=1.0,
+            frequency_penalty=0.0,
+            presence_penalty=0.0
+        )
+        return completion.choices[0].message.content
 
-            completion = self.client.chat.completions.create(
-                model="qwen25vl7b-2",  # Model name not needed as it's configured on server
-                messages=prompt,
-                temperature=0.7,
-                max_tokens=2048,
-                top_p=1.0,
-                frequency_penalty=0.0,
-                presence_penalty=0.0
-            )
-            responses.append(completion.choices[0].message.content)
-            
-        return responses
+def process_batch(batch: Batch, client_pool: List[Any]) -> List[str]:
+    """Process a batch of prompts using the existing client pool"""
+    # Generate responses in parallel using the client pool
+    futures = [client.generate.remote(prompt) for client, prompt in zip(client_pool, batch.prompts)]
+    responses = ray.get(futures)
+    
+    return responses
 
 def main():
+    # Initialize Ray
+    ray.init()
+    
     # Configuration
     data_path = "~/data/screenspot/test.parquet"  # Replace with your data path
     server_url = "http://model.orbyapi.com/v1"
     batch_size = 16
-    output_file = "screenspot_responses.parquet"
+    output_file = os.path.join(os.path.dirname(data_path), "responses.parquet")
     
+    # Create a pool of VLLM clients
+    client_pool = [VLLMClient.remote(server_url) for _ in range(batch_size)]
+
     # Initialize components
     data_loader = DataLoader(data_path, batch_size)
-    vllm_client = VLLMClient(server_url)
     
     # Process batches and collect responses
     all_responses = []
     
     for batch in tqdm(data_loader.get_batches(), desc="Processing batches"):
-        # Generate responses from VLLM server
-        responses = vllm_client.generate(batch.prompts)
+        # Generate responses from VLLM server in parallel using the client pool
+        responses = process_batch(batch, client_pool)
         all_responses.extend(responses)
    
     # Add responses to the original dataset
@@ -117,6 +127,9 @@ def main():
     # Save the updated dataset
     data_loader.data.to_parquet(output_file, index=False)
     print(f"Saved dataset with {len(all_responses)} responses to {output_file}")
+    
+    # Shutdown Ray
+    ray.shutdown()
 
 if __name__ == "__main__":
     main()
