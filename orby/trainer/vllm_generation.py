@@ -28,14 +28,15 @@ class DataLoader:
         """Load data from the parquet file"""
         return pd.read_parquet(self.data_path)
     
-    def _create_chat_template(self, row: pd.Series) -> str:
+    def _create_chat_messages(self, row: pd.Series) -> str:
         """Create chat template for the prompt"""
         prompt = row['prompt']
 
         # Convert image bytes to base64 encoding
-        image_bytes = BytesIO(row['images']).getvalue()
+        if len(row['images']) != 1:
+            raise ValueError("More than 1 image")
+        image_bytes = BytesIO(row['images'][0]['bytes']).getvalue()
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
-
         messages = [
             prompt[0],
             {
@@ -62,7 +63,7 @@ class DataLoader:
         for i in range(0, len(self.data), self.batch_size):
             batch_data = self.data.iloc[i:i + self.batch_size]
             prompts = [self._create_chat_messages(row) for _, row in batch_data.iterrows()]
-            ground_truth = batch_data['ground_truth'].tolist()
+            ground_truth = batch_data['reward_model'].tolist()
             yield Batch(prompts=prompts, ground_truth=ground_truth)
 
 class VLLMClient:
@@ -80,7 +81,7 @@ class VLLMClient:
 
             completion = self.client.chat.completions.create(
                 model="qwen25vl7b-2",  # Model name not needed as it's configured on server
-                messages=prompts,
+                messages=prompt,
                 temperature=0.7,
                 max_tokens=2048,
                 top_p=1.0,
@@ -88,13 +89,14 @@ class VLLMClient:
                 presence_penalty=0.0
             )
             responses.append(completion.choices[0].message.content)
+            
         return responses
 
 def main():
     # Configuration
     data_path = "~/data/screenspot/test.parquet"  # Replace with your data path
-    server_url = "http://model.orbyapi.com/v1/chat/completions"  # Replace with your VLLM server URL
-    batch_size = 8
+    server_url = "http://model.orbyapi.com/v1"
+    batch_size = 16
     output_file = "screenspot_responses.parquet"
     
     # Initialize components
@@ -108,7 +110,7 @@ def main():
         # Generate responses from VLLM server
         responses = vllm_client.generate(batch.prompts)
         all_responses.extend(responses)
-    
+   
     # Add responses to the original dataset
     data_loader.data['responses'] = all_responses
     
