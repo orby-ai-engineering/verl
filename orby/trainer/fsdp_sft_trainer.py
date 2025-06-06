@@ -47,7 +47,6 @@ from transformers import AutoConfig, AutoModelForCausalLM, PreTrainedModel, Qwen
 from torchdata.stateful_dataloader import StatefulDataLoader
 
 import verl.utils.hdfs_io as hdfs_io
-from verl.utils.dataset import SFTDataset
 from orby.dataset.sft_dataset import collate_fn
 from verl.utils.debug import log_gpu_memory_usage
 from verl.utils.distributed import initialize_global_process_group
@@ -757,7 +756,9 @@ def create_sft_dataset(data_paths, data_config, tokenizer, processor=None):
         dataset_cls = MultiTurnSFTDataset
     # Default to single-turn dataset
     else:
-        dataset_cls = SFTDataset
+        from verl.utils.dataset import SFTDataset as VERL_SFTDataset
+
+        dataset_cls = VERL_SFTDataset
 
     # Create datasets based on the selected class
     dataset = dataset_cls(parquet_files=data_paths, tokenizer=tokenizer, config=data_config)
