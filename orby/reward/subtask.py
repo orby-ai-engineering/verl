@@ -10,7 +10,7 @@ from orby.utils.action_utils import get_action_info, extract_content_by_tags
 
 # TODO: if we can get the bounding box information, investigate which reward is better
 # TODO: explore other sigma values and distance metrics that gives more signals when far away
-GAUSSIAN_DISTANCE_SIGMA = 70
+GAUSSIAN_DISTANCE_SIGMA = 5
 
 
 class UISubtaskRewardScorer:
