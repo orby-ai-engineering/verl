@@ -18,6 +18,7 @@ Reward scoring for UI UGround task
 import re
 import json
 from typing import Dict, List, Tuple, Optional
+import numpy as np
 
 
 class UGroundRewardScorer:
@@ -183,13 +184,48 @@ class QwenUGroundScorer:
             and y1 - tolerance <= y <= y2 + tolerance
         )
 
-    def score(self, prediction: str, ground_truth: Dict) -> Dict:
+    def _calculate_gaussian_score(
+        self,
+        pred_coordinates: list[tuple[float, float]] | None,
+        gt_coordinates: list[tuple[float, float]] | None,
+    ) -> float:
+        """
+        Calculate the score for the coordinates of the action.
+        We use a Gaussian similarity score with a sigma of 2 for all coordinates.
+
+        Args:
+            pred_coordinates: Predicted coordinates
+            gt_coordinates: Ground truth coordinates
+
+        Returns:
+            Score for the coordinates between 0 and 1
+        """
+        # If the length of the coordinates is different, we should penalize the model
+        if len(pred_coordinates) != len(gt_coordinates):
+            return 0.0
+
+        scores = []
+        for pred_coord, gt_coord in zip(pred_coordinates, gt_coordinates):
+            # Use a Gaussian similarity score with a sigma of 2
+            sigma = 5
+            pred = np.asarray(pred_coord)
+            truth = np.asarray(gt_coord)
+            d2 = np.sum((pred - truth) ** 2)
+            score = np.exp(-d2 / (2 * sigma**2))
+            scores.append(score)
+
+        return np.mean(scores)
+
+    def score(
+        self, prediction: str, ground_truth: Dict, use_gaussian: bool = False
+    ) -> Dict:
         """Score the prediction against ground truth.
 
         Args:
             prediction: Model prediction string with tool call
             ground_truth: Dictionary containing ground truth information
                 - bbox: Bounding box [x1, y1, x2, y2]
+            use_gaussian: Whether to use Gaussian scoring instead of bbox check
 
         Returns:
             Dictionary containing:
@@ -205,12 +241,25 @@ class QwenUGroundScorer:
         bbox = ground_truth.get("bbox")
 
         coordinates_correct = False
+        coord_score = 0.0
         if bbox is not None and pred_x is not None and pred_y is not None:
-            coordinates_correct = self._check_coordinates_in_bbox(pred_x, pred_y, bbox)
+            if use_gaussian:
+                # Convert single coordinate to list format for Gaussian scoring
+                pred_coords = [(pred_x, pred_y)]
+                # Convert bbox to list of coordinates (center point)
+                x1, y1, x2, y2 = bbox
+                center_x = (x1 + x2) / 2
+                center_y = (y1 + y2) / 2
+                gt_coords = [(center_x, center_y)]
+                coord_score = self._calculate_gaussian_score(pred_coords, gt_coords)
+            else:
+                coordinates_correct = self._check_coordinates_in_bbox(
+                    pred_x, pred_y, bbox
+                )
+                coord_score = 1.0 if coordinates_correct else 0.0
 
         # Calculate overall score
         format_score = 1.0 if has_tool_call else 0.0
-        coord_score = 1.0 if coordinates_correct else 0.0
 
         # Weight the scores (can be adjusted based on importance)
         weights = {"format": 0.2, "coordinates": 0.8}
@@ -230,6 +279,7 @@ class QwenUGroundScorer:
             ),
             "coordinates_ground_truth": str(bbox),
             "coordinates_score": coord_score,
+            "scoring_method": "gaussian" if use_gaussian else "bbox",
         }
 
         return details
@@ -253,13 +303,16 @@ def compute_score(prediction: str, ground_truth: Dict) -> Dict:
     return result
 
 
-def compute_qwen_score(prediction: str, ground_truth: Dict) -> Dict:
+def compute_qwen_score(
+    prediction: str, ground_truth: Dict, use_gaussian: bool = False
+) -> Dict:
     """Compute score for a single prediction in Qwen format.
 
     Args:
         prediction: Prediction string with tool call
         ground_truth: Dictionary containing ground truth information
             - bbox: Bounding box [x1, y1, x2, y2]
+        use_gaussian: Whether to use Gaussian scoring instead of bbox check
 
     Returns:
         Dictionary containing:
@@ -267,7 +320,7 @@ def compute_qwen_score(prediction: str, ground_truth: Dict) -> Dict:
             - details: Dictionary with individual check results
     """
     scorer = QwenUGroundScorer()
-    result = scorer.score(prediction, ground_truth)
+    result = scorer.score(prediction, ground_truth, use_gaussian=use_gaussian)
     return result
 
 
@@ -277,7 +330,10 @@ def reward_func(data_source, solution_str, ground_truth, extra_info=None):
 
         # Check if we should use Qwen format scoring
         if extra_info and extra_info.get("reward_model", {}).get("format") == "qwen":
-            return uground.compute_qwen_score(solution_str, ground_truth)
+            use_gaussian = extra_info.get("reward_model", {}).get("use_gaussian", False)
+            return uground.compute_qwen_score(
+                solution_str, ground_truth, use_gaussian=use_gaussian
+            )
         return uground.compute_score(solution_str, ground_truth)
     else:
         raise NotImplementedError
