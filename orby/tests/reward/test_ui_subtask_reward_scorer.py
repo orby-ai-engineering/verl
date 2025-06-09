@@ -65,14 +65,13 @@ class TestUISubtaskRewardScorer:
             "answer": "The answer",
         }
 
-        result = self.scorer._score_reward_model(prediction, ground_truth)
+        result = self.scorer._score_reward_model(prediction, ground_truth, detailed=True)
 
         assert np.isclose(result["score"], 1.0)
         assert np.isclose(result["format"], 1.0)
-        assert result["reasoning"] == 1
-        assert result["should_end"] == 1
-        assert result["goal_achieved"] == 1
-        assert result["answer"] == 1
+        assert result["reward_model/should_end"] == 1
+        assert result["reward_model/goal_achieved"] == 1
+        assert result["reward_model/answer"] == 1
 
     def test_score_reward_model_should_end_false(self):
         """Test reward model scoring when should_end is false."""
@@ -84,11 +83,11 @@ class TestUISubtaskRewardScorer:
             "answer": "Should be ignored",
         }
 
-        result = self.scorer._score_reward_model(prediction, ground_truth)
+        result = self.scorer._score_reward_model(prediction, ground_truth, detailed=True)
 
         # Answer should be 0 because predicted answer ("No answer yet") doesn't match empty string
         # (gt answer is set to empty when should_end is false)
-        assert result["answer"] == 0
+        assert result["reward_model/answer"] == 0
 
     def test_score_reward_model_missing_fields(self):
         """Test reward model scoring with missing fields."""
@@ -100,35 +99,45 @@ class TestUISubtaskRewardScorer:
             "answer": "The answer",
         }
 
-        result = self.scorer._score_reward_model(prediction, ground_truth)
+        result = self.scorer._score_reward_model(prediction, ground_truth, detailed=True)
 
         # Format score should be 2/4 = 0.5 (2 fields present out of 4)
         assert np.isclose(result["format"], 0.5)
 
     def test_calculate_coordinates_score_both_none(self):
         """Test coordinates scoring when both are None."""
-        score = self.scorer._calculate_coordinates_score(None, None)
+        score = self.scorer._calculate_coordinates_score(
+            None, None, metric="gaussian", gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+        )
         assert np.isclose(score, 1.0)
 
     def test_calculate_coordinates_score_one_none(self):
         """Test coordinates scoring when one is None."""
-        score = self.scorer._calculate_coordinates_score([(10, 20)], None)
+        score = self.scorer._calculate_coordinates_score(
+            [(10, 20)], None, metric="gaussian", gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+        )
         assert np.isclose(score, 0.0)
 
-        score = self.scorer._calculate_coordinates_score(None, [(10, 20)])
+        score = self.scorer._calculate_coordinates_score(
+            None, [(10, 20)], metric="gaussian", gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+        )
         assert np.isclose(score, 0.0)
 
     def test_calculate_coordinates_score_identical(self):
         """Test coordinates scoring with identical coordinates."""
         coords = [(10, 20), (30, 40)]
-        score = self.scorer._calculate_coordinates_score(coords, coords)
+        score = self.scorer._calculate_coordinates_score(
+            coords, coords, metric="gaussian", gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+        )
         assert np.isclose(score, 1.0)
 
     def test_calculate_coordinates_score_close(self):
         """Test coordinates scoring with close coordinates."""
         pred_coords = [(10, 20)]
         gt_coords = [(11, 21)]
-        score = self.scorer._calculate_coordinates_score(pred_coords, gt_coords)
+        score = self.scorer._calculate_coordinates_score(
+            pred_coords, gt_coords, metric="gaussian", gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+        )
 
         # Should be high but not 1.0 due to Gaussian similarity (around 0.78)
         assert 0.7 < score < 1.0
@@ -137,10 +146,21 @@ class TestUISubtaskRewardScorer:
         """Test coordinates scoring with far coordinates."""
         pred_coords = [(10, 20)]
         gt_coords = [(100, 200)]
-        score = self.scorer._calculate_coordinates_score(pred_coords, gt_coords)
+        score = self.scorer._calculate_coordinates_score(
+            pred_coords, gt_coords, metric="gaussian", gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+        )
 
         # Should be very low
         assert score < 0.1
+
+    def test_calculate_coordinates_score_different_lengths(self):
+        """Test coordinates scoring with different length coordinate lists."""
+        pred_coords = [(10, 20)]
+        gt_coords = [(10, 20), (30, 40)]
+        score = self.scorer._calculate_coordinates_score(
+            pred_coords, gt_coords, metric="gaussian", gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+        )
+        assert np.isclose(score, 0.0)
 
     def test_calculate_action_args_score_both_none(self):
         """Test action args scoring when both are None."""
@@ -185,14 +205,16 @@ class TestUISubtaskRewardScorer:
             "action": "click(100, 200, button='left', double=False)",
         }
 
-        result = self.scorer._score_executor(prediction, ground_truth)
+        result = self.scorer._score_executor(
+            prediction, ground_truth, detailed=True, 
+            coordinates_metric="gaussian", coordinates_gaussian_sigma=2, coordinates_pixel_square_cutoff=5
+        )
 
         assert np.isclose(result["score"], 1.0)
         assert np.isclose(result["format"], 1.0)
-        assert result["thinking"] == 1
-        assert result["action_type"] == 1
-        assert np.isclose(result["coordinates"], 1.0)
-        assert np.isclose(result["action_args"], 1.0)
+        assert result["executor/action_type"] == 1
+        assert np.isclose(result["executor/coordinates"], 1.0)
+        assert np.isclose(result["executor/action_args"], 1.0)
 
     def test_score_executor_invalid_action(self):
         """Test executor scoring with invalid action."""
@@ -203,15 +225,17 @@ class TestUISubtaskRewardScorer:
         }
 
         with patch("builtins.print"):  # Mock print to avoid output during tests
-            result = self.scorer._score_executor(prediction, ground_truth)
+            result = self.scorer._score_executor(
+                prediction, ground_truth, detailed=True,
+                coordinates_metric="gaussian", coordinates_gaussian_sigma=2, coordinates_pixel_square_cutoff=5
+            )
 
-        # Should only get format and thinking scores
+        # Should only get format score
         assert result["score"] > 0
         assert result["format"] > 0
-        assert result["thinking"] > 0
-        assert result["action_type"] == 0
-        assert result["coordinates"] == 0
-        assert result["action_args"] == 0
+        assert result["executor/action_type"] == 0
+        assert result["executor/coordinates"] == 0
+        assert result["executor/action_args"] == 0
 
     def test_score_reward_model_type(self):
         """Test score method with reward model type ground truth."""
@@ -227,10 +251,9 @@ class TestUISubtaskRewardScorer:
         result = self.scorer.score(prediction, ground_truth)
         assert np.isclose(result["score"], 1.0)
         assert np.isclose(result["format"], 1.0)
-        assert result["reasoning"] == 1
-        assert result["should_end"] == 1
-        assert result["goal_achieved"] == 1
-        assert result["answer"] == 1
+        assert result["reward_model/should_end"] == 1
+        assert result["reward_model/goal_achieved"] == 1
+        assert result["reward_model/answer"] == 1
 
     def test_score_executor_type(self):
         """Test score method with executor type ground truth."""
@@ -243,10 +266,9 @@ class TestUISubtaskRewardScorer:
         result = self.scorer.score(prediction, ground_truth)
         assert np.isclose(result["score"], 1.0)
         assert np.isclose(result["format"], 1.0)
-        assert result["thinking"] == 1
-        assert result["action_type"] == 1
-        assert np.isclose(result["coordinates"], 1.0)
-        assert np.isclose(result["action_args"], 1.0)
+        assert result["executor/action_type"] == 1
+        assert np.isclose(result["executor/coordinates"], 1.0)
+        assert np.isclose(result["executor/action_args"], 1.0)
 
     def test_score_invalid_ground_truth(self):
         """Test score method with invalid ground truth."""
@@ -282,11 +304,71 @@ class TestUISubtaskRewardScorer:
             "answer": "Expected answer",
         }
 
-        result = self.scorer._score_reward_model(prediction, ground_truth)
+        result = self.scorer._score_reward_model(prediction, ground_truth, detailed=True)
 
         # All scores should be 0
         assert np.isclose(result["format"], 0.0)
-        assert result["reasoning"] == 0
-        assert result["should_end"] == 0
-        assert result["goal_achieved"] == 0
-        assert result["answer"] == 0
+        assert result["reward_model/should_end"] == 0
+        assert result["reward_model/goal_achieved"] == 0
+        assert result["reward_model/answer"] == 0
+
+    def test_score_executor_with_bbox(self):
+        """Test executor scoring with bbox in ground truth."""
+        prediction = "<thinking>I need to click the button</thinking><action>click(100, 200)</action>"
+        ground_truth = {
+            "thinking": "I need to click the button",
+            "action": "click(100, 200)",
+            "bbox": [(90, 190, 110, 210)]  # bbox around the click point
+        }
+
+        result = self.scorer._score_executor(
+            prediction, ground_truth, detailed=True, 
+            coordinates_metric="gaussian", coordinates_gaussian_sigma=2, coordinates_pixel_square_cutoff=5
+        )
+
+        assert np.isclose(result["score"], 1.0)
+        assert np.isclose(result["format"], 1.0)
+        assert result["executor/action_type"] == 1
+        assert np.isclose(result["executor/coordinates"], 1.0)
+
+    def test_coordinate_scoring_metrics_not_implemented(self):
+        """Test that pixel_square and bbox metrics raise NotImplementedError."""
+        pred_coords = [(10, 20)]
+        gt_coords = [(11, 21)]
+        
+        with pytest.raises(NotImplementedError, match="Pixel square distance metric not implemented"):
+            self.scorer._calculate_coordinates_score(
+                pred_coords, gt_coords, metric="pixel_square", 
+                gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+            )
+            
+        with pytest.raises(NotImplementedError, match="Bounding box distance metric not implemented"):
+            self.scorer._calculate_coordinates_score(
+                pred_coords, gt_coords, metric="bbox", 
+                gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+            )
+
+    def test_coordinate_scoring_invalid_metric(self):
+        """Test that invalid metric raises ValueError."""
+        pred_coords = [(10, 20)]
+        gt_coords = [(11, 21)]
+        
+        with pytest.raises(ValueError, match="Invalid coordinate scoring metric: invalid"):
+            self.scorer._calculate_coordinates_score(
+                pred_coords, gt_coords, metric="invalid", 
+                gaussian_sigma=2, pixel_square_cutoff=5, gt_bbox=None
+            )
+
+    def test_gaussian_distance_score(self):
+        """Test the Gaussian distance scoring function."""
+        # Test identical coordinates
+        score = self.scorer._calculate_gaussian_distance_score((10, 20), (10, 20), sigma=2)
+        assert np.isclose(score, 1.0)
+        
+        # Test close coordinates
+        score = self.scorer._calculate_gaussian_distance_score((10, 20), (11, 21), sigma=2)
+        assert 0.7 < score < 1.0
+        
+        # Test far coordinates
+        score = self.scorer._calculate_gaussian_distance_score((10, 20), (100, 200), sigma=2)
+        assert score < 0.01
