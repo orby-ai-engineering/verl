@@ -44,6 +44,10 @@ torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
     trainer.experiment_name=uground-sft-qwen-2.5-7b \
     trainer.logger=[console,wandb] \
     trainer.total_training_steps=500 \
+    trainer.project_name=uground-sft \
+    trainer.experiment_name=uground-sft-qwen-2.5-7b \
+    trainer.logger=[console,wandb] \
+    trainer.total_training_steps=500 \
     trainer.default_hdfs_dir=null $@ \
     ulysses_sequence_parallel_size=1 \
     use_remove_padding=false \

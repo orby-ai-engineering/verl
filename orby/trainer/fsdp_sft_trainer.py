@@ -48,6 +48,7 @@ from torchdata.stateful_dataloader import StatefulDataLoader
 
 import verl.utils.hdfs_io as hdfs_io
 from orby.utils.dataset.sft_dataset import collate_fn
+from orby.utils.dataset.sft_dataset import collate_fn
 from verl.utils.debug import log_gpu_memory_usage
 from verl.utils.distributed import initialize_global_process_group
 from verl.utils.fs import copy_to_local
@@ -62,6 +63,7 @@ from verl.utils.ulysses import (
 from verl.utils import hf_tokenizer, hf_processor
 from verl.utils.device import get_device_name, get_torch_device, is_cuda_available, is_npu_available
 from verl.workers.sharding_manager.fsdp_ulysses import FSDPUlyssesShardingManager
+from omegaconf import OmegaConf
 from omegaconf import OmegaConf
 
 if is_cuda_available:
@@ -366,38 +368,7 @@ class FSDPSFTTrainer:
         position_ids = batch["position_ids"].to(self.device_name)
         raw_prompt_ids = batch["raw_prompt_ids"]
         multi_modal_inputs = batch.get("multi_modal_inputs", {})
-        
-        # MINIMAL DEBUG: Log sequence lengths and memory
-        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
-        #if rank == 0:  # Only log from rank 0
-        #    seq_len = input_ids.shape[-1]
-        #    batch_size = input_ids.shape[0]
-        #    allocated_gb = torch.cuda.memory_allocated() / 1e9
-        #    print(f"[DEBUG] Batch size: {batch_size}, Seq length: {seq_len}, GPU memory: {allocated_gb:.1f}GB")
-            
-            # Check if we have multimodal inputs
-        #    if len(multi_modal_inputs) > 0 and hasattr(multi_modal_inputs, 'data'):
-        #        total_images = sum(len(item.get('pixel_values', [])) if isinstance(item, dict) else 0 
-        #                         for item in multi_modal_inputs.data)
-        #        print(f"[DEBUG] Total images: {total_images}")
-        #    if len(multi_modal_inputs) > 0 and hasattr(multi_modal_inputs, 'data'):
-        #        print(f"[DEBUG] multi_modal_inputs.data length: {len(multi_modal_inputs.data)}")
-                
-         #       for i, item in enumerate(multi_modal_inputs.data):
-         #           print(f"[DEBUG] Item {i} type: {type(item)}")
-         #           if isinstance(item, dict):
-         #               print(f"[DEBUG] Item {i} keys: {list(item.keys())}")
-         #               if 'pixel_values' in item:
-         #                   pv_shape = item['pixel_values'].shape
-         #                   print(f"[DEBUG] Item {i} pixel_values shape: {pv_shape}")
-                            # This tells us: [num_images, channels, height, width]
-         #                   if len(pv_shape) >= 1:
-         #                       print(f"[DEBUG] Item {i} actual number of images: {pv_shape[0]}")
-                    
-                    # Only print first few items to avoid spam
-         #           if i >= 2:
-         #               print(f"[DEBUG] ... (showing only first 3 items)")
-         #               break
+
         if position_ids.dim() == 3:
             # When processing multimodal data (text + images), Qwen2.5-VL uses 3D position embeddings
             # where each token gets 3 coordinates: [t, h, w] representing temporal, height, width dimensions.
@@ -447,6 +418,8 @@ class FSDPSFTTrainer:
 
             position_indices = torch.arange(seq_len, device=attention_mask.device).unsqueeze(0).expand(batch_size, -1)
             
+            # Mask out prompt tokens (everything before the prompt_end_position)
+            prompt_mask = position_indices < prompt_end_position.unsqueeze(1)
             # Mask out prompt tokens (everything before the prompt_end_position)
             prompt_mask = position_indices < prompt_end_position.unsqueeze(1)
             loss_mask = loss_mask.masked_fill(prompt_mask, 0)
@@ -770,14 +743,6 @@ def main(config):
     local_model_path = copy_to_local(src=config.model.partial_pretrain, verbose=True)
     tokenizer = hf_tokenizer(local_model_path, trust_remote_code=config.model.trust_remote_code)
     processor = hf_processor(local_model_path, **config.get("processor", {}))
-    #print(f"Processor type: {type(processor)}")
-    #print(f"Processor class: {processor.__class__.__name__}")
-
-    # Check what image processing parameters it has
-    #if hasattr(processor, 'image_processor'):
-    #    print(f"Image processor: {processor.image_processor}")
-    #    print(f"Image processor config: {processor.image_processor.__dict__}")
-    #input('stopped at processor')
     train_dataset = create_sft_dataset(config.data.train_files, config.data, tokenizer, processor)
     val_dataset = create_sft_dataset(config.data.val_files, config.data, tokenizer, processor)
 

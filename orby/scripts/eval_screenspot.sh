@@ -81,7 +81,11 @@ else
             python orby/data/convert_screenspot_pro.py --prompt_format $PROMPT_FORMAT
             ;;
         "screenspot_sft")
+<<<<<<< HEAD
             python3 -m orby.data.convert_screenspot_sft
+=======
+            python3 -m orby.data.convert_screenspot_sft --prompt_format $PROMPT_FORMAT
+>>>>>>> main
             ;;
     esac
 fi
