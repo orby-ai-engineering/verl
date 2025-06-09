@@ -16,7 +16,6 @@ cd "$(dirname "$(dirname "$(dirname "$(realpath "$0")")")")"
 export PYTHONPATH="$PWD:$PYTHONPATH"
 
 
-
 torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
      -m orby.trainer.fsdp_sft_trainer \
     data.train_batch_size=32 \
