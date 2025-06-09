@@ -46,6 +46,10 @@ case $DATASET_VERSION in
         DATA_PATH=~/data/screenspot_pro
         PARQUET_PATTERN="test.parquet"
         ;;
+    "screenspot_sft")
+        DATA_PATH=~/data/screenspot_sft
+        PARQUET_PATTERN="test.parquet"
+        ;;
     *)
         echo "Invalid dataset version: $DATASET_VERSION"
         echo "Available versions: screenspot, screenspot_v2, screenspot_pro"
@@ -77,7 +81,7 @@ else
             python orby/data/convert_screenspot_pro.py --prompt_format $PROMPT_FORMAT
             ;;
         "screenspot_sft")
-            python3 -m orby.data.convert_screenspot_sft --prompt_format $PROMPT_FORMAT
+            python3 -m orby.data.convert_screenspot_sft
             ;;
     esac
 fi

@@ -21,16 +21,16 @@ export PYTHONPATH="$PWD:$PYTHONPATH"
 
 torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
      -m orby.trainer.fsdp_sft_trainer \
-    data.train_batch_size=64 \
-    data.micro_batch_size_per_gpu=8 \
-    data.train_files=$HOME/data/geo3k/train.parquet \
-    data.val_files=$HOME/data/geo3k/test.parquet \
+    data.train_batch_size=32 \
+    data.micro_batch_size_per_gpu=4 \
+    data.train_files=$HOME/data/uground/train.parquet \
+    data.val_files=$HOME/data/uground/test.parquet \
     data.prompt_key=prompt \
     data.response_key=extra_info \
     +data.image_key=images \
     +processor.use_fast=true \
     +processor.trust_remote_code=true \
-    optim.lr=1e-4 \
+    optim.lr=1e-6 \
     data.response_dict_keys=['answer'] \
     model.partial_pretrain=Qwen/Qwen2.5-VL-7B-Instruct \
     model.fsdp_config.cpu_offload=true \

@@ -443,7 +443,7 @@ class FSDPSFTTrainer:
                 # Record the end position of assistant prefix for sequences where we found the first match
                 # The mask ensures we only capture the first occurrence per sequence
                 mask = matches & (prompt_end_position == 0)
-                prompt_end_position[mask] = i + assistant_len - 1
+                prompt_end_position[mask] = i + assistant_len
 
             position_indices = torch.arange(seq_len, device=attention_mask.device).unsqueeze(0).expand(batch_size, -1)
             
