@@ -16,17 +16,17 @@ compute:
 
 command: |
   # Set these variables before running the script.
+  export EXPERIMENT_NAME="experiment_5_Qwen-2.5-VL-32B_e_rm_combined_68k_data_1_epoch_sigma_2"
   export NUM_NODES=8
   export TRAIN_BATCH_SIZE=128
   export MODEL_NAME=Qwen/Qwen2.5-VL-32B-Instruct
   export PROJECT_NAME=verl_grpo_example_subtask
-  export EXPERIMENT_NAME=qwen2_5_vl_32b_subtask
-  export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask/experiment_3_Qwen-2.5-VL-32B_e_rm_combined_68k_data_1_epoch
+  export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask/$EXPERIMENT_NAME
 
   # Set training environment variables
   export TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined.parquet
   export VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/combined.parquet
-  export REWARD_FN=training_reward_func
+  export REWARD_FN=training_reward_func_gaussian_sigma_2
   export REWARD_FILE=orby/reward/subtask.py
 
   # Init environment
