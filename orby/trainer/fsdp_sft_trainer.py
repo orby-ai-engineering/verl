@@ -48,7 +48,6 @@ from torchdata.stateful_dataloader import StatefulDataLoader
 
 import verl.utils.hdfs_io as hdfs_io
 from orby.utils.dataset.sft_dataset import collate_fn
-from orby.utils.dataset.sft_dataset import collate_fn
 from verl.utils.debug import log_gpu_memory_usage
 from verl.utils.distributed import initialize_global_process_group
 from verl.utils.fs import copy_to_local
@@ -63,7 +62,6 @@ from verl.utils.ulysses import (
 from verl.utils import hf_tokenizer, hf_processor
 from verl.utils.device import get_device_name, get_torch_device, is_cuda_available, is_npu_available
 from verl.workers.sharding_manager.fsdp_ulysses import FSDPUlyssesShardingManager
-from omegaconf import OmegaConf
 from omegaconf import OmegaConf
 
 if is_cuda_available:
@@ -420,8 +418,6 @@ class FSDPSFTTrainer:
             
             # Mask out prompt tokens (everything before the prompt_end_position)
             prompt_mask = position_indices < prompt_end_position.unsqueeze(1)
-            # Mask out prompt tokens (everything before the prompt_end_position)
-            prompt_mask = position_indices < prompt_end_position.unsqueeze(1)
             loss_mask = loss_mask.masked_fill(prompt_mask, 0)
             # Mask out the last token of each sequence
             # Find the last valid token position for each sequence
@@ -522,14 +518,6 @@ class FSDPSFTTrainer:
 
     def training_step(self, batch: TensorDict):
         self.fsdp_model.train()
-
-
-        # MINIMAL DEBUG: Check memory before processing
-        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
-        #if rank == 0:
-        #    allocated_gb = torch.cuda.memory_allocated() / 1e9
-        #    print(f"[DEBUG] Start training step - GPU memory: {allocated_gb:.1f}GB")
-
 
         log_gpu_memory_usage("Before optimizer zero_grad", logger=logger)
 
