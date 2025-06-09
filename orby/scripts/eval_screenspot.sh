@@ -5,6 +5,7 @@ set -e
 # bash orby/scripts/eval_screenspot.sh --version screenspot_v2
 # bash orby/scripts/eval_screenspot.sh --version screenspot_pro
 # bash orby/scripts/eval_screenspot.sh --version screenspot_sft
+# bash orby/scripts/eval_screenspot.sh --version screenspot_sft
 
 # Default values
 DATASET_VERSION="screenspot"
