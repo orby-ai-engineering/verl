@@ -51,7 +51,7 @@ class DataLoader:
                 "content": [
                     {
                         "type": "text",
-                        "text": prompt[1]["content"]
+                        "text": prompt[1]["content"].replace("<image>", "")
                     },
                     {
                         "type": "image_url",
@@ -81,25 +81,19 @@ class VLLMClient:
             api_key="not-needed"  # VLLM server doesn't require API key
         )
         
-    def generate(self, prompt: Any) -> str:
-        """Generate response for a single prompt"""
+    def generate(self, prompts: List[Any]) -> List[str]:
+        """Generate responses for a batch of prompts"""
         completion = self.client.chat.completions.create(
-            model="qwen25vl7b-2",  # Model name not needed as it's configured on server
-            messages=prompt,
+            model="qwen25vl7b-9",  # Model name not needed as it's configured on server
+            messages=prompts,
             temperature=0,
-            # max_tokens=2048,
             top_p=1.0,
-            # frequency_penalty=0.0,
-            # presence_penalty=0.0
         )
-        return completion.choices[0].message.content
+        return [choice.message.content for choice in completion.choices]
 
 def process_batch(batch: Batch, client: VLLMClient) -> List[str]:
     """Process a batch of prompts using a single client"""
-    responses = []
-    for prompt in batch.prompts:
-        response = client.generate(prompt)
-        responses.append([response])
+    responses = client.generate(batch.prompts)
     return responses
 
 def main():
