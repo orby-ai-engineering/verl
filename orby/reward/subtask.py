@@ -533,6 +533,23 @@ def training_reward_func_gaussian_sigma_5(
         raise NotImplementedError
 
 
+def training_reward_func_gaussian_sigma_70(
+    data_source, solution_str, ground_truth, extra_info=None
+):
+    if data_source == "subtask_direct_distill":
+        from orby.reward import subtask
+
+        return subtask.compute_score(
+            solution_str,
+            ground_truth,
+            detailed=False,
+            coordinates_metric="gaussian",
+            coordinates_gaussian_sigma=70,
+        )
+    else:
+        raise NotImplementedError
+
+
 def training_reward_func_pixel_square_size_10(
     data_source, solution_str, ground_truth, extra_info=None
 ):
