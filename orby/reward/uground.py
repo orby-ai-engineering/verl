@@ -324,13 +324,19 @@ def compute_qwen_score(
     return result
 
 
-def reward_func(data_source, solution_str, ground_truth, extra_info=None):
+def reward_func(
+    data_source,
+    solution_str,
+    ground_truth,
+    prompt_format=None,
+    use_gaussian=False,
+    extra_info=None,
+):
     if data_source in ["uground"]:
         from orby.reward import uground
 
         # Check if we should use Qwen format scoring
-        if extra_info and extra_info.get("reward_model", {}).get("format") == "qwen":
-            use_gaussian = extra_info.get("reward_model", {}).get("use_gaussian", False)
+        if prompt_format == "qwen":
             return uground.compute_qwen_score(
                 solution_str, ground_truth, use_gaussian=use_gaussian
             )

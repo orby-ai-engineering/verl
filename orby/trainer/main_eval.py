@@ -58,7 +58,14 @@ def get_custom_reward_fn(config):
 
     print(f"using customized reward function '{function_name}' from '{file_path}'")
 
-    return getattr(module, function_name)
+    raw_fn = getattr(module, function_name)
+
+    reward_kwargs = dict(reward_fn_config.get("reward_kwargs", {}))
+
+    def wrapped_fn(*args, **kwargs):
+        return raw_fn(*args, **kwargs, **reward_kwargs)
+
+    return wrapped_fn
 
 
 @ray.remote
@@ -69,8 +76,7 @@ def process_item(reward_fn, data_source, response_lst, reward_data):
     if "format" in reward_data:
         extra_info["format"] = reward_data["format"]
     score_lst = [
-        reward_fn(data_source, r, ground_truth, extra_info)
-        for r in response_lst
+        reward_fn(data_source, r, ground_truth, extra_info) for r in response_lst
     ]
     df = pd.DataFrame(score_lst)
 

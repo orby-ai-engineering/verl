@@ -14,7 +14,7 @@ MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
 REWARD_FILE=orby/reward/screenspot.py
 REWARD_FN=reward_func
 OUTPUT_FILE=result-test-output-1.parquet
-PROMPT_FORMAT="original"
+PROMPT_FORMAT="qwen"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -137,4 +137,5 @@ python3 -m orby.trainer.main_eval \
     data.prompt_key=prompt \
     data.response_key=responses \
     custom_reward_function.path=$REWARD_FILE \
-    custom_reward_function.name=$REWARD_FN
+    custom_reward_function.name=$REWARD_FN \
+    custom_reward_function.prompt_format=$PROMPT_FORMAT
