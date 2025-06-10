@@ -144,7 +144,7 @@ class UISubtaskRewardScorer:
         gt_coordinates: list[tuple[float, float]] | None,
         metric: Literal["gaussian", "pixel_square", "bbox"],
         gaussian_sigma: float,
-        pixel_square_cutoff: int,
+        pixel_square_size: int,
         gt_bbox: list[tuple[float, float, float, float]] | None,
     ) -> float:
         """
@@ -178,12 +178,11 @@ class UISubtaskRewardScorer:
                     pred_coord, gt_coord, gaussian_sigma
                 )
             elif metric == "pixel_square":
-                # score = self._pixel_square_score(pred_coord, gt_coord, pixel_square_cutoff)
-                raise NotImplementedError(
-                    "Pixel square distance metric not implemented"
+                score = self._calculate_pixel_square_score(
+                    pred_coord, gt_coord, pixel_square_size
                 )
             elif metric == "bbox":
-                # score = self._bbox_score(pred_coord, gt_bbox)
+                # score = self._calculate_bbox_score(pred_coord, gt_bbox)
                 raise NotImplementedError(
                     "Bounding box distance metric not implemented"
                 )
@@ -207,6 +206,31 @@ class UISubtaskRewardScorer:
         d2 = np.sum((pred - truth) ** 2)
         score = np.exp(-d2 / (2 * sigma**2))
         return score
+
+    def _calculate_pixel_square_score(
+        self,
+        pred_coord: tuple[float, float],
+        gt_coord: tuple[float, float],
+        pixel_square_size: int,
+    ) -> float:
+        """
+        Calculate the score for the coordinates using a pixel square distance score.
+        """
+        gt_x1, gt_y1, gt_x2, gt_y2 = [
+            max(gt_coord[0] - pixel_square_size / 2, 0),
+            max(gt_coord[1] - pixel_square_size / 2, 0),
+            gt_coord[0] + pixel_square_size / 2,
+            gt_coord[1] + pixel_square_size / 2,
+        ]
+
+        in_bbox = (
+            pred_coord[0] >= gt_x1
+            and pred_coord[0] <= gt_x2
+            and pred_coord[1] >= gt_y1
+            and pred_coord[1] <= gt_y2
+        )
+
+        return float(in_bbox)
 
     def _calculate_action_args_score(
         self, pred_args: dict[str, str] | None, gt_args: dict[str, str] | None
@@ -246,7 +270,7 @@ class UISubtaskRewardScorer:
         detailed: bool,
         coordinates_metric: Literal["gaussian", "pixel_square", "bbox"],
         coordinates_gaussian_sigma: float,
-        coordinates_pixel_square_cutoff: int,
+        coordinates_pixel_square_size: int,
     ) -> dict:
         """
         Score the prediction against ground truth for executor.
@@ -301,7 +325,7 @@ class UISubtaskRewardScorer:
                     gt_action_info["coordinates"],
                     metric=coordinates_metric,
                     gaussian_sigma=coordinates_gaussian_sigma,
-                    pixel_square_cutoff=coordinates_pixel_square_cutoff,
+                    pixel_square_size=coordinates_pixel_square_size,
                     gt_bbox=gt_bbox,
                 )
             except Exception as e:
@@ -361,7 +385,7 @@ class UISubtaskRewardScorer:
         detailed: bool = True,
         coordinates_metric: Literal["gaussian", "pixel_square", "bbox"] = "gaussian",
         coordinates_gaussian_sigma: float = 2,
-        coordinates_pixel_square_cutoff: int = 5,
+        coordinates_pixel_square_size: int = 10,
     ) -> dict:
         """Score the prediction against ground truth.
 
@@ -377,6 +401,16 @@ class UISubtaskRewardScorer:
             - executor: with fields
                 - thinking: str (unused)
                 - action: str
+                - bbox: list[tuple[float, float, float, float]] | None
+            detailed (bool): Whether to return detailed, categorized scores; this is mostly for
+                offline evaluation after training
+            coordinates_metric (Literal["gaussian", "pixel_square", "bbox"]): Metric to use for coordinates scoring
+                - gaussian: Gaussian distance metric
+                - pixel_square: Pixel square distance metric
+                - bbox: Bounding box distance metric (requires additional bbox information in ground truth)
+            coordinates_gaussian_sigma (float): Sigma for Gaussian distance metric
+            coordinates_pixel_square_size (int): width and height of the square bbox around the
+                ground truth pixel for pixel square distance metric
 
         Returns:
             Dictionary containing:
@@ -407,7 +441,7 @@ class UISubtaskRewardScorer:
                 detailed,
                 coordinates_metric=coordinates_metric,
                 coordinates_gaussian_sigma=coordinates_gaussian_sigma,
-                coordinates_pixel_square_cutoff=coordinates_pixel_square_cutoff,
+                coordinates_pixel_square_size=coordinates_pixel_square_size,
             )
         else:
             raise ValueError("Invalid ground truth type")
@@ -421,13 +455,22 @@ def compute_score(
     detailed: bool = True,
     coordinates_metric: Literal["gaussian", "pixel_square", "bbox"] = "gaussian",
     coordinates_gaussian_sigma: float = 2,
-    coordinates_pixel_square_cutoff: int = 5,
+    coordinates_pixel_square_size: int = 10,
 ) -> dict:
     """Compute score for a single prediction.
 
     Args:
-        prediction: Prediction string
-        ground_truth: Dictionary containing ground truth information
+        prediction (str): Prediction string
+        ground_truth (dict): Dictionary containing ground truth information
+        detailed (bool): Whether to return detailed, categorized scores; this is mostly for
+            offline evaluation after training
+        coordinates_metric (Literal["gaussian", "pixel_square", "bbox"]): Metric to use for coordinates scoring
+            - gaussian: Gaussian distance metric
+            - pixel_square: Pixel square distance metric
+            - bbox: Bounding box distance metric (requires additional bbox information in ground truth)
+        coordinates_gaussian_sigma (float): Sigma for Gaussian distance metric
+        coordinates_pixel_square_size (int): width and height of the square bbox around the
+            ground truth pixel for pixel square distance metric
     """
     scorer = UISubtaskRewardScorer()
     result = scorer.score(
@@ -436,7 +479,7 @@ def compute_score(
         detailed=detailed,
         coordinates_metric=coordinates_metric,
         coordinates_gaussian_sigma=coordinates_gaussian_sigma,
-        coordinates_pixel_square_cutoff=coordinates_pixel_square_cutoff,
+        coordinates_pixel_square_size=coordinates_pixel_square_size,
     )
     return result
 
@@ -490,6 +533,23 @@ def training_reward_func_gaussian_sigma_5(
         raise NotImplementedError
 
 
+def training_reward_func_pixel_square_size_10(
+    data_source, solution_str, ground_truth, extra_info=None
+):
+    if data_source == "subtask_direct_distill":
+        from orby.reward import subtask
+
+        return subtask.compute_score(
+            solution_str,
+            ground_truth,
+            detailed=False,
+            coordinates_metric="pixel_square",
+            coordinates_pixel_square_size=10,
+        )
+    else:
+        raise NotImplementedError
+
+
 def eval_reward_func(data_source, solution_str, ground_truth, extra_info=None):
     if data_source == "subtask_direct_distill":
         from orby.reward import subtask
@@ -500,6 +560,23 @@ def eval_reward_func(data_source, solution_str, ground_truth, extra_info=None):
             detailed=True,
             coordinates_metric="gaussian",
             coordinates_gaussian_sigma=5,
+        )
+    else:
+        raise NotImplementedError
+
+
+def eval_reward_func_pixel_square_size_10(
+    data_source, solution_str, ground_truth, extra_info=None
+):
+    if data_source == "subtask_direct_distill":
+        from orby.reward import subtask
+
+        return subtask.compute_score(
+            solution_str,
+            ground_truth,
+            detailed=True,
+            coordinates_metric="pixel_square",
+            coordinates_pixel_square_size=10,
         )
     else:
         raise NotImplementedError
