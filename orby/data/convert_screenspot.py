@@ -77,7 +77,7 @@ if __name__ == "__main__":
         default="thinking",
         help="Select prompt format: ['thinking', 'qwen', 'sft']",
     )
-    
+
     args = parser.parse_args()
 
     print(f"Prompt format: {args.prompt_format}", flush=True)
@@ -149,13 +149,11 @@ if __name__ == "__main__":
                 data["prompt"] = [
                     {
                         "role": "user",
-                        "content": (
-                            "<image> Instruction: " + instruction
-                        ),
+                        "content": ("<image> Instruction: " + instruction),
                     },
                 ]
 
-            else:  # qwen format
+            elif args.prompt_format == "qwen":  # qwen format
                 prompt = NousFnCallPrompt().preprocess_fncall_messages(
                     messages=[
                         Message(
@@ -187,7 +185,6 @@ if __name__ == "__main__":
                     message["content"] = content
 
                 data["prompt"] = prompt
-                data["reward_model"]["format"] = "qwen"
 
             data.update(example)
             return data

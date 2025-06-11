@@ -291,12 +291,14 @@ def compute_qwen_score(prediction: str, ground_truth: Dict) -> Dict:
     return result
 
 
-def reward_func(data_source, solution_str, ground_truth, extra_info=None):
+def reward_func(
+    data_source, solution_str, ground_truth, prompt_format=None, extra_info=None
+):
     if data_source in ["screenspot", "screenspot_v2", "screenspot_pro"]:
         from orby.reward import screenspot
 
         # Check if the response contains tool call format
-        if extra_info and extra_info.get("format") == "qwen":
+        if prompt_format == "qwen":
             return screenspot.compute_qwen_score(solution_str, ground_truth)
         else:
             return screenspot.compute_score(solution_str, ground_truth)

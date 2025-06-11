@@ -28,6 +28,12 @@ from transformers import AutoProcessor
 from qwen_vl_utils import smart_resize
 
 from verl.utils.hdfs_io import copy, makedirs
+from qwen_agent.llm.fncall_prompts.nous_fncall_prompt import (
+    NousFnCallPrompt,
+    Message,
+    ContentItem,
+)
+from orby.utils.dataset.qwen_agent_function_call import ComputerUse
 
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
@@ -56,7 +62,12 @@ if __name__ == "__main__":
     parser.add_argument("--hdfs_dir", default=None)
     parser.add_argument("--data_files", default="shard_0000.parquet")
     parser.add_argument("--output_filename", default="train")
-    parser.add_argument("--prompt_format", choices=["thinking", "sft"], required=True, default="thinking")
+    parser.add_argument(
+        "--prompt_format",
+        choices=["qwen", "thinking", "sft"],
+        default="sft",
+        help="Select prompt format: 'qwen' or 'thinking' or 'sft'",
+    )
 
     args = parser.parse_args()
 
@@ -118,6 +129,9 @@ if __name__ == "__main__":
                     "bounding_box": bbox,
                 },
             }
+
+            # Create prompt based on selected format
+
             if args.prompt_format == "thinking":
                 data["prompt"] = [
                     {
@@ -134,33 +148,67 @@ if __name__ == "__main__":
                 data["prompt"] = [
                     {
                         "role": "user",
-                        "content": (
-                            "<image> Instruction: " + instruction
-                        ),
+                        "content": ("<image> Instruction: " + instruction),
                     },
                 ]
-
                 data["response"] = [
                     {
                         "role": "assistant",
-                        "content": f"<answer>{center_x:.0f} {center_y:.0f}</answer>"
+                        "content": f"<answer>{center_x:.0f} {center_y:.0f}</answer>",
                     }
                 ]
+            elif args.prompt_format == "qwen":
+                prompt = NousFnCallPrompt().preprocess_fncall_messages(
+                    messages=[
+                        Message(
+                            role="system",
+                            content=[ContentItem(text="You are a helpful assistant.")],
+                        ),
+                        Message(
+                            role="user",
+                            content=[
+                                ContentItem(text=instruction + "<image>"),
+                            ],
+                        ),
+                    ],
+                    functions=[
+                        ComputerUse(
+                            cfg={
+                                "display_width_px": resized_width,
+                                "display_height_px": resized_height,
+                            }
+                        ).function
+                    ],
+                    lang=None,
+                )
+
+                prompt = [msg.model_dump() for msg in prompt]
+                for message in prompt:
+                    # Replace the list of content to a string.
+                    content = "".join(m["text"] for m in message["content"])
+                    message["content"] = content
+
+                data["prompt"] = prompt
+
             return data
 
         return process_fn
-    
+
     if args.prompt_format == "sft":
         dataset = dataset.train_test_split(train_size=0.8, seed=42)
-        train_dataset = dataset['train']
-        test_dataset = dataset['test']
+        train_dataset = dataset["train"]
+        test_dataset = dataset["test"]
 
-        train_dataset = train_dataset.map(function=make_map_fn("train"), with_indices=True, num_proc=16)
+        train_dataset = train_dataset.map(
+            function=make_map_fn("train"), with_indices=True, num_proc=16
+        )
         train_dataset = train_dataset.cast_column("images", Sequence(ImageData()))
 
-        test_dataset = test_dataset.map(function=make_map_fn("test"), with_indices=True, num_proc=16)
+        test_dataset = test_dataset.map(
+            function=make_map_fn("test"), with_indices=True, num_proc=16
+        )
         test_dataset = test_dataset.cast_column("images", Sequence(ImageData()))
-        
+
         local_dir = os.path.expanduser(args.local_dir)
         local_dir += "_sft"
         print(f"Saving to {local_dir}...", flush=True)
@@ -169,7 +217,9 @@ if __name__ == "__main__":
         train_dataset.to_parquet(os.path.join(local_dir, "train.parquet"))
         test_dataset.to_parquet(os.path.join(local_dir, "test.parquet"))
     else:
-        dataset = dataset.map(function=make_map_fn("train"), with_indices=True, num_proc=16)
+        dataset = dataset.map(
+            function=make_map_fn("train"), with_indices=True, num_proc=16
+        )
         dataset = dataset.cast_column("images", Sequence(ImageData()))
 
         local_dir = os.path.expanduser(args.local_dir)

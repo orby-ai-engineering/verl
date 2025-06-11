@@ -154,12 +154,10 @@ def process_json_file(json_path, image_dir, split, prompt_format="thinking"):
             data["prompt"] = [
                 {
                     "role": "user",
-                    "content": (
-                        "<image> Instruction: " + example["instruction"]
-                    ),
+                    "content": ("<image> Instruction: " + example["instruction"]),
                 },
             ]
-        else:  # qwen format
+        elif prompt_format == "qwen":  # qwen format
             prompt = NousFnCallPrompt().preprocess_fncall_messages(
                 messages=[
                     Message(
@@ -189,7 +187,6 @@ def process_json_file(json_path, image_dir, split, prompt_format="thinking"):
                 content = "".join(m["text"] for m in message["content"])
                 message["content"] = content
             data["prompt"] = prompt
-            data["reward_model"]["format"] = "qwen"
 
         processed_examples.append(data)
 
