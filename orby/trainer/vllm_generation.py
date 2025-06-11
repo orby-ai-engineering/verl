@@ -87,7 +87,7 @@ class VLLMClient:
     def generate(self, prompt: Any) -> str:
         """Generate response for a single prompt"""
         completion = self.client.chat.completions.create(
-            model="qwen25vl7b-2",  # Model name not needed as it's configured on server
+            model="qwen25vl7b-9",  # Model name not needed as it's configured on server
             messages=prompt,
             temperature=0,
             # max_tokens=2048,
