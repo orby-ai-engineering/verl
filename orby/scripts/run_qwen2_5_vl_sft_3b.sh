@@ -37,14 +37,10 @@ torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
     +model.fsdp_config.param_offload=true \
     +name_or_path=Qwen/Qwen2.5-VL-7B-Instruct \
     trainer.default_local_dir=$save_path \
+    trainer.total_training_steps=null \
     trainer.project_name=uground-sft \
     trainer.experiment_name=uground-sft-qwen-2.5-7b \
     trainer.logger=[console,wandb] \
-    trainer.total_training_steps=500 \
-    trainer.project_name=uground-sft \
-    trainer.experiment_name=uground-sft-qwen-2.5-7b \
-    trainer.logger=[console,wandb] \
-    trainer.total_training_steps=500 \
     trainer.default_hdfs_dir=null $@ \
     +trainer.val_interval=25 \
     +trainer.save_interval=50 \
