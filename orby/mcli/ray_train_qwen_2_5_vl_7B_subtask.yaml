@@ -26,8 +26,11 @@ command: |
   # Set training environment variables
   export TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined.parquet
   export VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/combined.parquet
-  export REWARD_FN="SET THE REWARD FUNCTION NAME HERE"
+  export REWARD_FN=training_reward_func
   export REWARD_FILE=orby/reward/subtask.py
+  export COORDINATES_METRIC="gaussian"
+  export COORDINATES_GAUSSIAN_SIGMA=5
+  export COORDINATES_PIXEL_SQUARE_SIZE=10
 
   # Init environment
   cd /workspace/verl
@@ -74,6 +77,9 @@ command: |
         python3 -m verl.trainer.main_ppo \
             custom_reward_function.path=$REWARD_FILE \
             custom_reward_function.name=$REWARD_FN \
+            custom_reward_function.coordinates_metric=$COORDINATES_METRIC \
+            custom_reward_function.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
+            custom_reward_function.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE \
             algorithm.adv_estimator=grpo \
             data.train_files=$TRAIN_FILES \
             data.val_files=$VAL_FILES \

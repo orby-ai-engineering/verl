@@ -2,6 +2,9 @@ MODEL_PATH=Qwen/Qwen2.5-VL-72B-Instruct
 DATA_PATH=~/data/subtask_direct_distill/mix/test/combined.parquet
 REWARD_FILE=orby/reward/subtask.py
 REWARD_FN=eval_reward_func
+COORDINATES_METRIC="gaussian"
+COORDINATES_GAUSSIAN_SIGMA=5
+COORDINATES_PIXEL_SQUARE_SIZE=10
 OUTPUT_FILE=test-output-subtask-1.parquet
 
 # Generation
@@ -30,4 +33,7 @@ python3 -m orby.trainer.main_eval \
     data.prompt_key=prompt \
     data.response_key=responses \
     custom_reward_function.path=$REWARD_FILE \
-    custom_reward_function.name=$REWARD_FN
+    custom_reward_function.name=$REWARD_FN \
+    custom_reward_function.coordinates_metric=$COORDINATES_METRIC \
+    custom_reward_function.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
+    custom_reward_function.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE

@@ -382,10 +382,10 @@ class UISubtaskRewardScorer:
         self,
         prediction: str,
         ground_truth: dict,
-        detailed: bool = True,
-        coordinates_metric: Literal["gaussian", "pixel_square", "bbox"] = "gaussian",
-        coordinates_gaussian_sigma: float = 2,
-        coordinates_pixel_square_size: int = 10,
+        detailed: bool,
+        coordinates_metric: Literal["gaussian", "pixel_square", "bbox"],
+        coordinates_gaussian_sigma: float,
+        coordinates_pixel_square_size: int,
     ) -> dict:
         """Score the prediction against ground truth.
 
@@ -452,10 +452,10 @@ class UISubtaskRewardScorer:
 def compute_score(
     prediction: str,
     ground_truth: dict,
-    detailed: bool = True,
-    coordinates_metric: Literal["gaussian", "pixel_square", "bbox"] = "gaussian",
-    coordinates_gaussian_sigma: float = 2,
-    coordinates_pixel_square_size: int = 10,
+    detailed: bool,
+    coordinates_metric: Literal["gaussian", "pixel_square", "bbox"],
+    coordinates_gaussian_sigma: float,
+    coordinates_pixel_square_size: int,
 ) -> dict:
     """Compute score for a single prediction.
 
@@ -484,23 +484,14 @@ def compute_score(
     return result
 
 
-def training_reward_func(data_source, solution_str, ground_truth, extra_info=None):
-    if data_source == "subtask_direct_distill":
-        from orby.reward import subtask
-
-        return subtask.compute_score(
-            solution_str,
-            ground_truth,
-            detailed=False,
-            coordinates_metric="gaussian",
-            coordinates_gaussian_sigma=5,
-        )
-    else:
-        raise NotImplementedError
-
-
-def training_reward_func_gaussian_sigma_2(
-    data_source, solution_str, ground_truth, extra_info=None
+def training_reward_func(
+    data_source,
+    solution_str,
+    ground_truth,
+    coordinates_metric="gaussian",
+    coordinates_gaussian_sigma=5,
+    coordinates_pixel_square_size=10,
+    extra_info=None,
 ):
     if data_source == "subtask_direct_distill":
         from orby.reward import subtask
@@ -509,81 +500,22 @@ def training_reward_func_gaussian_sigma_2(
             solution_str,
             ground_truth,
             detailed=False,
-            coordinates_metric="gaussian",
-            coordinates_gaussian_sigma=2,
+            coordinates_metric=coordinates_metric,
+            coordinates_gaussian_sigma=coordinates_gaussian_sigma,
+            coordinates_pixel_square_size=coordinates_pixel_square_size,
         )
     else:
         raise NotImplementedError
 
 
-def training_reward_func_gaussian_sigma_5(
-    data_source, solution_str, ground_truth, extra_info=None
-):
-    if data_source == "subtask_direct_distill":
-        from orby.reward import subtask
-
-        return subtask.compute_score(
-            solution_str,
-            ground_truth,
-            detailed=False,
-            coordinates_metric="gaussian",
-            coordinates_gaussian_sigma=5,
-        )
-    else:
-        raise NotImplementedError
-
-
-def training_reward_func_gaussian_sigma_70(
-    data_source, solution_str, ground_truth, extra_info=None
-):
-    if data_source == "subtask_direct_distill":
-        from orby.reward import subtask
-
-        return subtask.compute_score(
-            solution_str,
-            ground_truth,
-            detailed=False,
-            coordinates_metric="gaussian",
-            coordinates_gaussian_sigma=70,
-        )
-    else:
-        raise NotImplementedError
-
-
-def training_reward_func_pixel_square_size_10(
-    data_source, solution_str, ground_truth, extra_info=None
-):
-    if data_source == "subtask_direct_distill":
-        from orby.reward import subtask
-
-        return subtask.compute_score(
-            solution_str,
-            ground_truth,
-            detailed=False,
-            coordinates_metric="pixel_square",
-            coordinates_pixel_square_size=10,
-        )
-    else:
-        raise NotImplementedError
-
-
-def eval_reward_func(data_source, solution_str, ground_truth, extra_info=None):
-    if data_source == "subtask_direct_distill":
-        from orby.reward import subtask
-
-        return subtask.compute_score(
-            solution_str,
-            ground_truth,
-            detailed=True,
-            coordinates_metric="gaussian",
-            coordinates_gaussian_sigma=5,
-        )
-    else:
-        raise NotImplementedError
-
-
-def eval_reward_func_pixel_square_size_10(
-    data_source, solution_str, ground_truth, extra_info=None
+def eval_reward_func(
+    data_source,
+    solution_str,
+    ground_truth,
+    coordinates_metric="gaussian",
+    coordinates_gaussian_sigma=5,
+    coordinates_pixel_square_size=10,
+    extra_info=None,
 ):
     if data_source == "subtask_direct_distill":
         from orby.reward import subtask
@@ -592,8 +524,9 @@ def eval_reward_func_pixel_square_size_10(
             solution_str,
             ground_truth,
             detailed=True,
-            coordinates_metric="pixel_square",
-            coordinates_pixel_square_size=10,
+            coordinates_metric=coordinates_metric,
+            coordinates_gaussian_sigma=coordinates_gaussian_sigma,
+            coordinates_pixel_square_size=coordinates_pixel_square_size,
         )
     else:
         raise NotImplementedError
