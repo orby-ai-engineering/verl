@@ -12,8 +12,8 @@ PROMPT_FORMAT=qwen
 python3 -m verl.trainer.main_ppo \
     custom_reward_function.path=$REWARD_FILE \
     custom_reward_function.name=$REWARD_FN \
-    custom_reward_function.prompt_format=$PROMPT_FORMAT \
-    custom_reward_function.use_gaussian=$USE_GAUSSIAN \
+    +custom_reward_function.reward_kwargs.prompt_format=$PROMPT_FORMAT \
+    +custom_reward_function.reward_kwargs.use_gaussian=$USE_GAUSSIAN \
     algorithm.adv_estimator=grpo \
     data.train_files=$HOME/data/uground/train.parquet \
     data.val_files=$HOME/data/uground/test.parquet \
