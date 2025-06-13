@@ -50,6 +50,14 @@ command: |
   # Calculate local world size (GPUs per node)
   export NPROC_PER_NODE=8  # 32 total GPUs / 4 nodes = 8 GPUs per node
   
+  # Dynamically list all parquet files in S3 directories
+  echo "Discovering parquet files in S3..."
+  TRAIN_FILES=$(aws s3 ls s3://orby-osu-va/Rishu-Uground-test/train/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/Rishu-Uground-test/train/" $4}' | paste -sd ',' -)
+  VAL_FILES=$(aws s3 ls s3://orby-osu-va/Rishu-Uground-test/test/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/Rishu-Uground-test/test/" $4}' | paste -sd ',' -)
+  
+  echo "Found train files: $TRAIN_FILES"
+  echo "Found val files: $VAL_FILES"
+  
   # Run torchrun on each node
   torchrun \
     --nproc_per_node=$NPROC_PER_NODE \
@@ -60,8 +68,8 @@ command: |
     -m orby.trainer.fsdp_sft_trainer \
     data.train_batch_size=128 \
     data.micro_batch_size_per_gpu=4 \
-    data.train_files=s3://orby-osu-va/Rishu-Uground-test/train/ \
-    data.val_files=s3://orby-osu-va/Rishu-Uground-test/test/ \
+    data.train_files="[$TRAIN_FILES]" \
+    data.val_files="[$VAL_FILES]" \
     data.prompt_key=prompt \
     data.response_key=extra_info \
     +data.image_key=images \
