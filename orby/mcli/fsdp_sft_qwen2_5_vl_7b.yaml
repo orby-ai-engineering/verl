@@ -47,7 +47,7 @@ command: |
   # Set PYTHONPATH for orby.trainer module
   export PYTHONPATH="/workspace/verl:$PYTHONPATH"
 
-# Calculate local world size (GPUs per node)
+  # Calculate local world size (GPUs per node)
   export NPROC_PER_NODE=8  # 32 total GPUs / 4 nodes = 8 GPUs per node
   
   # Run torchrun on each node
