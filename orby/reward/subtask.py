@@ -517,7 +517,7 @@ def eval_reward_func(
     coordinates_pixel_square_size=10,
     extra_info=None,
 ):
-    if data_source == "subtask_direct_distill":
+    if data_source == "subtask_direct_distill" or data_source == "hsmv2_distill":
         from orby.reward import subtask
 
         return subtask.compute_score(
