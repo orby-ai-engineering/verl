@@ -166,13 +166,14 @@ class FSDPCheckpointManager(BaseCheckpointManager):
                 unwrap_model = self.model
 
             model_config = unwrap_model.config
-            if unwrap_model.can_generate() and hasattr(model_config, "name_or_path") and model_config.name_or_path:
-                # Some model's name_or_path is empty if not initialized from pretrained,
-                # in this cases, we don't save generation config.
-                generation_config = GenerationConfig.from_pretrained(model_config.name_or_path)
-                generation_config.save_pretrained(local_path)
-            else:
-                generation_config = None
+            generation_config = None
+            # if unwrap_model.can_generate() and hasattr(model_config, "name_or_path") and model_config.name_or_path:
+            #     # Some model's name_or_path is empty if not initialized from pretrained,
+            #     # in this cases, we don't save generation config.
+            #     generation_config = GenerationConfig.from_pretrained(model_config.name_or_path)
+            #     generation_config.save_pretrained(local_path)
+            # else:
+            #     generation_config = None
 
             model_config.save_pretrained(local_path)
             self.processing_class.save_pretrained(local_path)
