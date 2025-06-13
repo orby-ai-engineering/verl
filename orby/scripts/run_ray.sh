@@ -1,8 +1,9 @@
 #!/bin/bash
-
+echo "Node rank is $NODE_RANK"
 # Check the NODE_RANK environment variable
 if [ "$NODE_RANK" = "0" ]; then
     # First node will be Ray head
+    echo "Node rank is 0"
     ray start --head --dashboard-host=0.0.0.0 --node-ip-address=$(hostname -I | awk '{print $1}') --port 6379
     echo "Ray head started"
 
