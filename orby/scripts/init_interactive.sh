@@ -18,11 +18,41 @@ apt install -y awscli
 pip install 'urllib3<2'
 pip install parquet-tools
 
-# Download model.
+# Install Miniconda
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda
+source $HOME/miniconda/bin/activate
+
+# Create and setup conda environment
+conda create -n verl python=3.12 -y
+conda activate verl
+
+# Clone VERL repository
+git clone git@github.com:orby-ai-engineering/verl.git && cd verl
+# Initialize git submodules if needed
+git submodule update --init --recursive
+# Install dependencies
+pip install -e .[vllm]
+
+# Handle Flash Attention installation
+pip uninstall -y flash-attn
+FLASH_ATTENTION_FORCE_BUILD=TRUE pip install flash-attn --no-build-isolation
+
+# Install additional utilities
+pip install qwen_vl_utils
+pip install qwen_agent
+pip install hf_transfer
+
+# Download model, verify transformers installation
 python3 -c "import transformers; transformers.pipeline(model='Qwen/Qwen2.5-VL-7B-Instruct')"
 
-# Install verl lib: https://verl.readthedocs.io/en/latest/start/install.html
-pip3 install -e .[vllm]
+# Install internal packages
+conda deactivate
+conda create -n digital-agent python=3.12 -y
+git clone git@github.com:orby-ai-engineering/digital-agent.git & cd digital-agent
+git submodule update --init --recursive
+pip install -r requirements.txt
+
 
 # Download and convert action description dev set
 # mkdir -p ~/data/action_description/raw/
