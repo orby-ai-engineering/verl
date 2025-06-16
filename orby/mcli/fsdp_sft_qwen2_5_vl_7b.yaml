@@ -83,14 +83,14 @@ command: |
     +model.enable_activation_offload=true \
     model.fsdp_config.offload_params=true \
     +model.fsdp_config.param_offload=true \
-    trainer.default_local_dir=s3://orby-osu-va/Rishu-Uground-test/100k-checkpoints \
+    trainer.default_local_dir=s3://orby-osu-va/Rishu-Uground-test/test-checkpoint \
     trainer.total_training_steps=null \
     trainer.project_name=uground-sft \
     trainer.experiment_name=uground-sft-qwen-2.5-7b \
     trainer.logger=[console,wandb] \
     trainer.default_hdfs_dir=null \
     +trainer.val_interval=25 \
-    +trainer.save_interval=50 \
+    +trainer.save_interval=1 \
     trainer.total_epochs=1 \
     ulysses_sequence_parallel_size=1 \
     use_remove_padding=false \

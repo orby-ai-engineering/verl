@@ -614,17 +614,45 @@ class FSDPSFTTrainer:
             state_dict = self.fsdp_model.state_dict()
 
         path = os.path.join(self.config.trainer.default_local_dir, f"global_step_{step}")
+        
         # save huggingface model
         if self.device_mesh.get_rank() == 0:
-            os.makedirs(path, exist_ok=True)
-            self.model.save_pretrained(path, state_dict=state_dict)
-            self.tokenizer.save_pretrained(path)
-            if hasattr(self, "processor") and self.processor is not None:
-                self.processor.save_pretrained(path)
-            if self.config.trainer.default_hdfs_dir:
-                hdfs_io.makedirs(self.config.trainer.default_hdfs_dir, exist_ok=True)
-                hdfs_io.copy(src=path, dst=self.config.trainer.default_hdfs_dir, dirs_exist_ok=True)
+            if self.config.trainer.default_local_dir.startswith("s3://"):
+                # For S3, use temporary directory
+                import tempfile, shutil
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    local_path = os.path.join(temp_dir, f"global_step_{step}")
+                    os.makedirs(local_path, exist_ok=True)
+                    self.model.save_pretrained(local_path, state_dict=state_dict)
+                    self.tokenizer.save_pretrained(local_path)
+                    if hasattr(self, "processor") and self.processor is not None:
+                        self.processor.save_pretrained(local_path)
+                    self._upload_directory_to_s3(local_path, path)
+            else:
+                # Original logic for local/HDFS
+                os.makedirs(path, exist_ok=True)
+                self.model.save_pretrained(path, state_dict=state_dict)
+                self.tokenizer.save_pretrained(path)
+                if hasattr(self, "processor") and self.processor is not None:
+                    self.processor.save_pretrained(path)
+                if self.config.trainer.default_hdfs_dir:
+                    hdfs_io.makedirs(self.config.trainer.default_hdfs_dir, exist_ok=True)
+                    hdfs_io.copy(src=path, dst=self.config.trainer.default_hdfs_dir, dirs_exist_ok=True)
         torch.distributed.barrier()
+
+    def _upload_directory_to_s3(self, local_dir: str, s3_path: str):
+        """Upload local directory to S3"""
+        print(f"Uploading checkpoint from {local_dir} to {s3_path}")
+        from verl.utils.s3_io import file_upload, parse_uri
+        
+        bucket, prefix, _ = parse_uri(s3_path, is_dir=True)
+        
+        for root, _, files in os.walk(local_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, local_dir)
+                s3_key = f"{prefix}{relative_path}"
+                file_upload(bucket, file_path, s3_key)
 
     def fit(self):
         rank = self.device_mesh.get_rank()
