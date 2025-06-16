@@ -33,10 +33,11 @@ from qwen_agent.llm.fncall_prompts.nous_fncall_prompt import (
     ContentItem,
 )
 from orby.utils.dataset.qwen_agent_function_call import ComputerUse
+from verl.utils import hf_processor
 
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
-PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH)
+PROCESSOR = hf_processor(MODEL_PATH, use_fast=True)
 
 _SOURCE_MAP = {
     "ios": "mobile",

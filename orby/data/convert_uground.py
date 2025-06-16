@@ -33,7 +33,6 @@ from verl.utils.hdfs_io import copy, makedirs
 from verl.utils import hf_processor
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
-# PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH)
 PROCESSOR = hf_processor(MODEL_PATH, use_fast=True)
 
 def get_resized_wh(image):

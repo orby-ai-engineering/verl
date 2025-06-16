@@ -24,12 +24,6 @@ command: |
   pip install sgl-kernel
   pip install boto3
 
-  # Install s5cmd (required by VERL for S3 operations)
-  wget https://github.com/peak/s5cmd/releases/download/v2.2.2/s5cmd_2.2.2_Linux-64bit.tar.gz
-  tar -xzf s5cmd_2.2.2_Linux-64bit.tar.gz
-  mv s5cmd /usr/local/bin/
-  chmod +x /usr/local/bin/s5cmd
-  rm s5cmd_2.2.2_Linux-64bit.tar.gz
 
   # Set environment variables
   export HYDRA_FULL_ERROR=1
@@ -90,7 +84,7 @@ command: |
     trainer.logger=[console,wandb] \
     trainer.default_hdfs_dir=null \
     +trainer.val_interval=25 \
-    +trainer.save_interval=1 \
+    +trainer.save_interval=50 \
     trainer.total_epochs=1 \
     ulysses_sequence_parallel_size=1 \
     use_remove_padding=false \
