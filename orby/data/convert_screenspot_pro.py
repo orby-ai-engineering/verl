@@ -38,9 +38,8 @@ from orby.utils.dataset.qwen_agent_function_call import ComputerUse
 
 from verl.utils.hdfs_io import copy, makedirs
 
-
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
-PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH)
+PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH, use_fast=True)
 
 _PLATFORM_MAP = {
     "ios": "mobile",

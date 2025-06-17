@@ -36,7 +36,7 @@ from orby.utils.dataset.qwen_agent_function_call import ComputerUse
 
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
-PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH)
+PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH, use_fast=True)
 
 _SOURCE_MAP = {
     "ios": "mobile",
