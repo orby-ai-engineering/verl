@@ -3,14 +3,11 @@ Reward scoring for UI Subtask task
 """
 
 from difflib import SequenceMatcher
+from typing import Literal
 
 import numpy as np
 
 from orby.utils.action_utils import get_action_info, extract_content_by_tags
-
-# TODO: if we can get the bounding box information, investigate which reward is better
-# TODO: explore other sigma values and distance metrics that gives more signals when far away
-GAUSSIAN_DISTANCE_SIGMA = 70
 
 
 class UISubtaskRewardScorer:
@@ -51,7 +48,9 @@ class UISubtaskRewardScorer:
         ).ratio()
         return similarity >= threshold
 
-    def _score_reward_model(self, prediction: str, ground_truth: dict, detailed: bool) -> dict:
+    def _score_reward_model(
+        self, prediction: str, ground_truth: dict, detailed: bool
+    ) -> dict:
         """
         Score the prediction against ground truth for reward model.
 
@@ -143,6 +142,10 @@ class UISubtaskRewardScorer:
         self,
         pred_coordinates: list[tuple[float, float]] | None,
         gt_coordinates: list[tuple[float, float]] | None,
+        metric: Literal["gaussian", "pixel_square", "bbox"],
+        gaussian_sigma: float,
+        pixel_square_size: int,
+        gt_bbox: list[tuple[float, float, float, float]] | None,
     ) -> float:
         """
         Calculate the score for the coordinates of the action.
@@ -170,16 +173,64 @@ class UISubtaskRewardScorer:
 
         scores = []
         for pred_coord, gt_coord in zip(pred_coordinates, gt_coordinates):
-            # TODO: if we can get the bounding box information, investigate which reward is better
-            # TODO: explore other sigma values and distance metrics that gives more signals when far away
-            sigma = GAUSSIAN_DISTANCE_SIGMA
-            pred = np.asarray(pred_coord)
-            truth = np.asarray(gt_coord)
-            d2 = np.sum((pred - truth) ** 2)
-            score = np.exp(-d2 / (2 * sigma**2))
+            if metric == "gaussian":
+                score = self._calculate_gaussian_distance_score(
+                    pred_coord, gt_coord, gaussian_sigma
+                )
+            elif metric == "pixel_square":
+                score = self._calculate_pixel_square_score(
+                    pred_coord, gt_coord, pixel_square_size
+                )
+            elif metric == "bbox":
+                # score = self._calculate_bbox_score(pred_coord, gt_bbox)
+                raise NotImplementedError(
+                    "Bounding box distance metric not implemented"
+                )
+            else:
+                raise ValueError(f"Invalid coordinate scoring metric: {metric}")
             scores.append(score)
 
         return np.mean(scores)
+
+    def _calculate_gaussian_distance_score(
+        self,
+        pred_coord: tuple[float, float],
+        gt_coord: tuple[float, float],
+        sigma: float,
+    ) -> float:
+        """
+        Calculate the score for the coordinates using a Gaussian similarity score.
+        """
+        pred = np.asarray(pred_coord)
+        truth = np.asarray(gt_coord)
+        d2 = np.sum((pred - truth) ** 2)
+        score = np.exp(-d2 / (2 * sigma**2))
+        return score
+
+    def _calculate_pixel_square_score(
+        self,
+        pred_coord: tuple[float, float],
+        gt_coord: tuple[float, float],
+        pixel_square_size: int,
+    ) -> float:
+        """
+        Calculate the score for the coordinates using a pixel square distance score.
+        """
+        gt_x1, gt_y1, gt_x2, gt_y2 = [
+            max(gt_coord[0] - pixel_square_size / 2, 0),
+            max(gt_coord[1] - pixel_square_size / 2, 0),
+            gt_coord[0] + pixel_square_size / 2,
+            gt_coord[1] + pixel_square_size / 2,
+        ]
+
+        in_bbox = (
+            pred_coord[0] >= gt_x1
+            and pred_coord[0] <= gt_x2
+            and pred_coord[1] >= gt_y1
+            and pred_coord[1] <= gt_y2
+        )
+
+        return float(in_bbox)
 
     def _calculate_action_args_score(
         self, pred_args: dict[str, str] | None, gt_args: dict[str, str] | None
@@ -213,7 +264,13 @@ class UISubtaskRewardScorer:
         return np.mean(scores)
 
     def _score_executor(
-        self, prediction: str, ground_truth: dict, detailed: bool
+        self,
+        prediction: str,
+        ground_truth: dict,
+        detailed: bool,
+        coordinates_metric: Literal["gaussian", "pixel_square", "bbox"],
+        coordinates_gaussian_sigma: float,
+        coordinates_pixel_square_size: int,
     ) -> dict:
         """
         Score the prediction against ground truth for executor.
@@ -233,6 +290,14 @@ class UISubtaskRewardScorer:
         format_score = sum(
             1 for value in pred_dict.values() if value is not None
         ) / len(self.executor_tags)
+
+        gt_bbox = ground_truth.get("bbox", None)
+        assert gt_bbox is None or (
+            isinstance(gt_bbox, list)
+            and all(
+                isinstance(item, (tuple, list)) and len(item) == 4 for item in gt_bbox
+            )
+        ), "Ground truth bbox must be a list of tuples of 4 floats or None"
 
         # Convert everything to string, even None
         pred_dict = {key: str(value) for key, value in pred_dict.items()}
@@ -256,7 +321,12 @@ class UISubtaskRewardScorer:
         if not action_type_parser_error:
             try:
                 coordinates_score = self._calculate_coordinates_score(
-                    pred_action_info["coordinates"], gt_action_info["coordinates"]
+                    pred_action_info["coordinates"],
+                    gt_action_info["coordinates"],
+                    metric=coordinates_metric,
+                    gaussian_sigma=coordinates_gaussian_sigma,
+                    pixel_square_size=coordinates_pixel_square_size,
+                    gt_bbox=gt_bbox,
                 )
             except Exception as e:
                 print(f"Error calculating coordinates score: {e}")
@@ -309,7 +379,13 @@ class UISubtaskRewardScorer:
         return details
 
     def score(
-        self, prediction: str, ground_truth: dict, detailed: bool = True
+        self,
+        prediction: str,
+        ground_truth: dict,
+        detailed: bool,
+        coordinates_metric: Literal["gaussian", "pixel_square", "bbox"],
+        coordinates_gaussian_sigma: float,
+        coordinates_pixel_square_size: int,
     ) -> dict:
         """Score the prediction against ground truth.
 
@@ -325,6 +401,16 @@ class UISubtaskRewardScorer:
             - executor: with fields
                 - thinking: str (unused)
                 - action: str
+                - bbox: list[tuple[float, float, float, float]] | None
+            detailed (bool): Whether to return detailed, categorized scores; this is mostly for
+                offline evaluation after training
+            coordinates_metric (Literal["gaussian", "pixel_square", "bbox"]): Metric to use for coordinates scoring
+                - gaussian: Gaussian distance metric
+                - pixel_square: Pixel square distance metric
+                - bbox: Bounding box distance metric (requires additional bbox information in ground truth)
+            coordinates_gaussian_sigma (float): Sigma for Gaussian distance metric
+            coordinates_pixel_square_size (int): width and height of the square bbox around the
+                ground truth pixel for pixel square distance metric
 
         Returns:
             Dictionary containing:
@@ -349,38 +435,98 @@ class UISubtaskRewardScorer:
             and ("goal_achieved" not in gt_keys or not ground_truth["goal_achieved"])
             and ("answer" not in gt_keys or not ground_truth["answer"])
         ):
-            result = self._score_executor(prediction, ground_truth, detailed)
+            result = self._score_executor(
+                prediction,
+                ground_truth,
+                detailed,
+                coordinates_metric=coordinates_metric,
+                coordinates_gaussian_sigma=coordinates_gaussian_sigma,
+                coordinates_pixel_square_size=coordinates_pixel_square_size,
+            )
         else:
             raise ValueError("Invalid ground truth type")
 
         return result
 
 
-def compute_score(prediction: str, ground_truth: dict, detailed: bool = True) -> dict:
+def compute_score(
+    prediction: str,
+    ground_truth: dict,
+    detailed: bool,
+    coordinates_metric: Literal["gaussian", "pixel_square", "bbox"],
+    coordinates_gaussian_sigma: float,
+    coordinates_pixel_square_size: int,
+) -> dict:
     """Compute score for a single prediction.
 
     Args:
-        prediction: Prediction string
-        ground_truth: Dictionary containing ground truth information
+        prediction (str): Prediction string
+        ground_truth (dict): Dictionary containing ground truth information
+        detailed (bool): Whether to return detailed, categorized scores; this is mostly for
+            offline evaluation after training
+        coordinates_metric (Literal["gaussian", "pixel_square", "bbox"]): Metric to use for coordinates scoring
+            - gaussian: Gaussian distance metric
+            - pixel_square: Pixel square distance metric
+            - bbox: Bounding box distance metric (requires additional bbox information in ground truth)
+        coordinates_gaussian_sigma (float): Sigma for Gaussian distance metric
+        coordinates_pixel_square_size (int): width and height of the square bbox around the
+            ground truth pixel for pixel square distance metric
     """
     scorer = UISubtaskRewardScorer()
-    result = scorer.score(prediction, ground_truth, detailed=detailed)
+    result = scorer.score(
+        prediction,
+        ground_truth,
+        detailed=detailed,
+        coordinates_metric=coordinates_metric,
+        coordinates_gaussian_sigma=coordinates_gaussian_sigma,
+        coordinates_pixel_square_size=coordinates_pixel_square_size,
+    )
     return result
 
 
-def training_reward_func(data_source, solution_str, ground_truth, extra_info=None):
+def training_reward_func(
+    data_source,
+    solution_str,
+    ground_truth,
+    coordinates_metric="gaussian",
+    coordinates_gaussian_sigma=5,
+    coordinates_pixel_square_size=10,
+    extra_info=None,
+):
     if data_source == "subtask_direct_distill":
         from orby.reward import subtask
 
-        return subtask.compute_score(solution_str, ground_truth, detailed=False)
+        return subtask.compute_score(
+            solution_str,
+            ground_truth,
+            detailed=False,
+            coordinates_metric=coordinates_metric,
+            coordinates_gaussian_sigma=coordinates_gaussian_sigma,
+            coordinates_pixel_square_size=coordinates_pixel_square_size,
+        )
     else:
         raise NotImplementedError
 
 
-def eval_reward_func(data_source, solution_str, ground_truth, extra_info=None):
+def eval_reward_func(
+    data_source,
+    solution_str,
+    ground_truth,
+    coordinates_metric="gaussian",
+    coordinates_gaussian_sigma=5,
+    coordinates_pixel_square_size=10,
+    extra_info=None,
+):
     if data_source == "subtask_direct_distill":
         from orby.reward import subtask
 
-        return subtask.compute_score(solution_str, ground_truth, detailed=True)
+        return subtask.compute_score(
+            solution_str,
+            ground_truth,
+            detailed=True,
+            coordinates_metric=coordinates_metric,
+            coordinates_gaussian_sigma=coordinates_gaussian_sigma,
+            coordinates_pixel_square_size=coordinates_pixel_square_size,
+        )
     else:
         raise NotImplementedError
