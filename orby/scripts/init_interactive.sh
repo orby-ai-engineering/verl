@@ -1,5 +1,5 @@
-YOUR_EMAIL=""
-YOUR_NAME=""
+YOUR_EMAIL="sanjari@orby.ai"
+YOUR_NAME="Sanjari Srivastava"
 if [ -z "$YOUR_EMAIL" ] || [ -z "$YOUR_NAME" ]; then
     echo "Please set YOUR_EMAIL and YOUR_NAME in the script"
     exit 1

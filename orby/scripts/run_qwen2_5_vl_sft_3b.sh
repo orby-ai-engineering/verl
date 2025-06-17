@@ -20,8 +20,8 @@ torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
      -m orby.trainer.fsdp_sft_trainer \
     data.train_batch_size=32 \
     data.micro_batch_size_per_gpu=4 \
-    data.train_files=$HOME/data/uground/train.parquet \
-    data.val_files=$HOME/data/uground/test.parquet \
+    data.train_files=/root/data/uground_sft/train.parquet \
+    data.val_files=/root/data/uground_sft/test.parquet \
     data.prompt_key=prompt \
     data.response_key=extra_info \
     +data.image_key=images \
@@ -29,7 +29,7 @@ torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
     +processor.trust_remote_code=true \
     optim.lr=1e-6 \
     data.response_dict_keys=['answer'] \
-    model.partial_pretrain=Qwen/Qwen2.5-VL-7B-Instruct \
+    model.partial_pretrain=ByteDance-Seed/UI-TARS-1.5-7B \
     model.fsdp_config.cpu_offload=true \
     model.enable_gradient_checkpointing=true \
     +model.enable_activation_offload=true \

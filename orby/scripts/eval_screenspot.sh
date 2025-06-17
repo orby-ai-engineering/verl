@@ -10,11 +10,11 @@ set -e
 
 # Default values
 DATASET_VERSION="screenspot"
-MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
+MODEL_PATH=/workspace/checkpoints/global_step_150
 REWARD_FILE=orby/reward/screenspot.py
 REWARD_FN=reward_func
 OUTPUT_FILE=result-test-output-1.parquet
-PROMPT_FORMAT="qwen"
+PROMPT_FORMAT="sft"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do

@@ -239,7 +239,7 @@ if __name__ == "__main__":
         logging.info(f"Processing {json_file}")
         examples = process_json_file(json_file, image_dir, "test", args.prompt_format)
         all_examples.extend(examples)
-        if len(all_examples) > 750:
+        if len(all_examples) > 500:
             # Convert to dataset
             dataset = datasets.Dataset.from_list(all_examples)
             dataset = dataset.cast_column("images", Sequence(ImageData()))
