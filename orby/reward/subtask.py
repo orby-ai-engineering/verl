@@ -182,9 +182,8 @@ class UISubtaskRewardScorer:
                     pred_coord, gt_coord, pixel_square_size
                 )
             elif metric == "bbox":
-                # score = self._calculate_bbox_score(pred_coord, gt_bbox)
-                raise NotImplementedError(
-                    "Bounding box distance metric not implemented"
+                score = self._calculate_bbox_score(
+                    pred_coord, gt_bbox
                 )
             else:
                 raise ValueError(f"Invalid coordinate scoring metric: {metric}")
@@ -231,6 +230,26 @@ class UISubtaskRewardScorer:
         )
 
         return float(in_bbox)
+
+    def _calculate_bbox_score(
+        self,
+        pred_coord: list[tuple[float, float]],
+        gt_bbox: list[tuple[float, float, float, float]] | None,
+    ) -> float:
+        """
+        Calculate whether or not the coordinate is inside the bounding box (0 or 1 reward)
+        """
+        if gt_bbox is None:
+            return 1.0
+
+        score = []
+        for pred, bbox in zip(pred_coord, gt_bbox):
+            if pred[0] >= bbox[0] and pred[0] <= bbox[2] and pred[1] >= bbox[1] and pred[1] <= bbox[3]:
+                score.append(1.0)
+            else:
+                score.append(0.0)
+
+        return np.mean(score)
 
     def _calculate_action_args_score(
         self, pred_args: dict[str, str] | None, gt_args: dict[str, str] | None

@@ -21,6 +21,7 @@ python scripts/model_merger.py merge \
     --backend fsdp \
     --local_dir checkpoints/verl_fsdp_gsm8k_examples/qwen2_5_0b5_fsdp_saveload/global_step_1/actor \
     --target_dir /path/to/merged_hf_model
+    --hf_model_path hf_model_name (e.x. Qwen/Qwen2.5-VL-7B-Instruct)
 ```
 
 To merge Megatron checkpoints:
@@ -233,7 +234,7 @@ class FSDPModelMerger(BaseModelMerger):
             match = re.match(r"model_world_size_(\d+)_rank_0\.pt", filename)
             if match:
                 return int(match.group(1))
-        raise FileNotFoundError(f"Could not determine world size. No file matching 'model_world_size_(\d+)_rank_0.pt' found in {self.local_dir}")
+        raise FileNotFoundError(f"Could not determine world size. No file matching 'model_world_size_(\\d+)_rank_0.pt' found in {self.local_dir}")
 
     def _load_rank_zero_state_dict(self, world_size: int) -> dict:
         return torch.load(Path(self.local_dir) / f"model_world_size_{world_size}_rank_0.pt", map_location="cpu", weights_only=False)

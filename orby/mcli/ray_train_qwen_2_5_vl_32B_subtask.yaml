@@ -122,8 +122,8 @@ command: |
             trainer.experiment_name=$EXPERIMENT_NAME \
             trainer.n_gpus_per_node=8 \
             trainer.nnodes=$NUM_NODES \
-            trainer.save_freq=50 \
-            trainer.test_freq=50 \
+            trainer.save_freq=10 \
+            trainer.test_freq=10 \
             trainer.s3_checkpoint_dir=$S3_CHECKPOINT_DIR \
             trainer.total_epochs=1 $@ | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
       ray stop
