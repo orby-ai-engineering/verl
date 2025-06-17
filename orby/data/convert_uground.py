@@ -208,7 +208,7 @@ def save_in_chunks(
     return file_counter  # Return the next counter value
 
 
-def process_in_chunks(streaming_dataset, chunk_size=1000):
+def process_in_chunks(streaming_dataset, chunk_size=5000):
     """Process streaming dataset in chunks with immediate saving capability"""
     chunk = []
     total_processed = 0
@@ -278,7 +278,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--chunk_size",
         type=int,
-        default=1000,
+        default=5000,
         help="Number of examples to process at once",
     )
     parser.add_argument(
@@ -407,7 +407,7 @@ if __name__ == "__main__":
                 data["response"] = [
                     {
                         "role": "assistant",
-                        "content": f"<answer>{center_x:.0f} {center_y:.0f}</answer>",
+                        "content": f"<answer>click({center_x:.0f}, {center_y:.0f})</answer>",
                     }
                 ]
             elif args.prompt_format == "qwen":

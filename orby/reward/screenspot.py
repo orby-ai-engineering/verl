@@ -30,7 +30,7 @@ class ScreenspotRewardScorer:
         # <answer>1240 783</answer>
         self.thinking_pattern = re.compile(r"<think>(.*?)</think>", re.DOTALL)
         self.answer_pattern = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
-        self.coordinate_pattern = re.compile(r"(\d*\.?\d+)\s+(\d*\.?\d+)")
+        self.coordinate_pattern = re.compile(r"click\((\d*\.?\d+),\s*(\d*\.?\d+)\)")
 
     def _extract_coordinates(
         self, answer_str: str
@@ -43,7 +43,7 @@ class ScreenspotRewardScorer:
         Returns:
             Tuple of (x, y) coordinates or (None, None) if not found
         """
-        match = self.coordinate_pattern.match(answer_str.strip())
+        match = self.coordinate_pattern.search(answer_str.strip())
         if not match:
             return None, None
         x, y = match.groups()
@@ -144,6 +144,7 @@ class QwenScreenSpotScorer:
         # </tool_call>
         # We need to extract the coordinate from the tool call.
         self.tool_call_pattern = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
+        self.click_pattern = re.compile(r"click\((\d*\.?\d+),\s*(\d*\.?\d+)\)")
 
     def _extract_coordinates(
         self, response: str
@@ -156,6 +157,13 @@ class QwenScreenSpotScorer:
         Returns:
             Tuple of (x, y) coordinates or (None, None) if not found
         """
+        # First try to find click(x, y) format directly
+        click_match = self.click_pattern.search(response)
+        if click_match:
+            x, y = click_match.groups()
+            return float(x), float(y)
+
+        # Fallback to original tool call format if needed
         match = self.tool_call_pattern.search(response)
         if not match:
             return None, None
