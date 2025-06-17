@@ -242,14 +242,21 @@ class UISubtaskRewardScorer:
         if gt_bbox is None:
             return 1.0
 
-        score = []
-        for pred, bbox in zip(pred_coord, gt_bbox):
-            if pred[0] >= bbox[0] and pred[0] <= bbox[2] and pred[1] >= bbox[1] and pred[1] <= bbox[3]:
-                score.append(1.0)
+        if len(gt_bbox) == 1:
+            bbox = gt_bbox[0]
+            if pred_coord[0] >= bbox[0] and pred_coord[0] <= bbox[2] and pred_coord[1] >= bbox[1] and pred_coord[1] <= bbox[3]:
+                return 1.0
             else:
-                score.append(0.0)
+                return 0.0
+        else:
+            score = []
+            for pred, bbox in zip(pred_coord, gt_bbox):
+                if pred[0] >= bbox[0] and pred[0] <= bbox[2] and pred[1] >= bbox[1] and pred[1] <= bbox[3]:
+                    score.append(1.0)
+                else:
+                    score.append(0.0)
 
-        return np.mean(score)
+            return np.mean(score)
 
     def _calculate_action_args_score(
         self, pred_args: dict[str, str] | None, gt_args: dict[str, str] | None
