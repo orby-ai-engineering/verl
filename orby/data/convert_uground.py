@@ -316,22 +316,8 @@ if __name__ == "__main__":
 
         return process_fn
 
+    local_dir = os.path.expanduser(args.local_dir)
     if args.prompt_format == "sft":
-        dataset = dataset.train_test_split(train_size=0.8, seed=42)
-        train_dataset = dataset["train"]
-        test_dataset = dataset["test"]
-
-        train_dataset = train_dataset.map(
-            function=make_map_fn("train"), with_indices=True, num_proc=16
-        )
-        train_dataset = train_dataset.cast_column("images", Sequence(ImageData()))
-
-        test_dataset = test_dataset.map(
-            function=make_map_fn("test"), with_indices=True, num_proc=16
-        )
-        test_dataset = test_dataset.cast_column("images", Sequence(ImageData()))
-
-        local_dir = os.path.expanduser(args.local_dir)
         local_dir += "_sft"
 
     print(f"Saving to {local_dir}...", flush=True)
