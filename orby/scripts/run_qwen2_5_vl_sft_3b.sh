@@ -20,8 +20,8 @@ torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
      -m orby.trainer.fsdp_sft_trainer \
     data.train_batch_size=32 \
     data.micro_batch_size_per_gpu=4 \
-    data.train_files=$HOME/data/uground/train.parquet \
-    data.val_files=$HOME/data/uground/test.parquet \
+    data.train_files=$HOME/data/uground_sft/train/train_*.parquet \
+    data.val_files=$HOME/data/uground_sft/test/test_*.parquet \
     data.prompt_key=prompt \
     data.response_key=extra_info \
     +data.image_key=images \
@@ -37,14 +37,10 @@ torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
     +model.fsdp_config.param_offload=true \
     +name_or_path=Qwen/Qwen2.5-VL-7B-Instruct \
     trainer.default_local_dir=$save_path \
+    trainer.total_training_steps=null \
     trainer.project_name=uground-sft \
     trainer.experiment_name=uground-sft-qwen-2.5-7b \
     trainer.logger=[console,wandb] \
-    trainer.total_training_steps=500 \
-    trainer.project_name=uground-sft \
-    trainer.experiment_name=uground-sft-qwen-2.5-7b \
-    trainer.logger=[console,wandb] \
-    trainer.total_training_steps=500 \
     trainer.default_hdfs_dir=null $@ \
     +trainer.val_interval=25 \
     +trainer.save_interval=50 \
