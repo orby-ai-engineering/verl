@@ -169,7 +169,7 @@ class SFTDataset(Dataset):
             for message in messages:
                 content = message["content"]
                 content_list = []
-                for segment in re.split("(<image>|<video>)", content):
+                for segment in re.split("(<image:current_screenshot>|<video>)", content):
                     if segment == "<image>":
                         content_list.append({"type": "image"})
                     elif segment == "<video>":
