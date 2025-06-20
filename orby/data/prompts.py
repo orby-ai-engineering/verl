@@ -123,7 +123,7 @@ Try to use a completely different approach.
 The previous action can fail either because the action itself is inappropriate, or because the coordinates of the elements are not correct. 
 Adjust your next action accordingly. 
 Here is the current screenshot of the webpage, which you can interact with using the actions and which you should remember coordinates for elements: 
-<image:current_screenshot>
+<image>
 Pixel coordinates originate from the top left corner of the image, where the first coordinate refers to the horizontal/width axis and the second refers to the vertical/height axis. 
 Important: explore, explore, explore! The screenshot is not the entire webpage and you need to scroll to determine if a task is completable or whether you have gathered all the information you need. 
 Again, our goal is: {instruction}
@@ -140,7 +140,7 @@ def get_sft_messages(instruction: str, center_x: float, center_y: float):
         assistant_content = ""
     
     prompt = [
-        {"role": "system", "content": system_content},
+        {"role": "user", "content": system_content}, # This is NOT a typo.. This is done so that qwen adds it's own default system prompt on top of this
         {"role": "user", "content": user_content}
     ]
     
