@@ -52,7 +52,6 @@ _PLATFORM_MAP = {
 }
 
 
-
 def get_resized_ratio(image):
     """
     Get the resize ratios for width and height of the image.

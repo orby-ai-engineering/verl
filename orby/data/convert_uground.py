@@ -43,7 +43,6 @@ MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
 PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH, use_fast=True)
 
 
-
 def get_resized_wh(image):
     """
     Get the resized width and height of the image.

@@ -10,7 +10,7 @@ set -e
 
 # Default values
 DATASET_VERSION="screenspot"
-MODEL_PATH=/root/experiment/uground-merged/sft/global_step_5/
+MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
 REWARD_FILE=orby/reward/screenspot.py
 REWARD_FN=reward_func
 OUTPUT_FILE=result-test-output-1.parquet
@@ -130,7 +130,6 @@ python3 -m orby.trainer.main_generation \
     rollout.tensor_model_parallel_size=1 \
     rollout.gpu_memory_utilization=0.9 \
     rollout.max_num_batched_tokens=65536 \
-    $(if [[ "$PROMPT_FORMAT" == "sft" ]]; then echo "+data.use_sft_dataset=true"; fi)
 
 # Evaluation
 python3 -m orby.trainer.main_eval \

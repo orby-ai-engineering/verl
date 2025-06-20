@@ -43,7 +43,7 @@ torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
     trainer.logger=[console,wandb] \
     trainer.default_hdfs_dir=null $@ \
     +trainer.val_interval=25 \
-    +trainer.save_interval=5 \
+    +trainer.save_interval=50 \
     ulysses_sequence_parallel_size=1 \
     use_remove_padding=false \
     +model.fsdp_config.reshard_after_forward=true \

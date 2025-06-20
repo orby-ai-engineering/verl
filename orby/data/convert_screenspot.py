@@ -38,7 +38,6 @@ from orby.data.prompts import get_sft_messages
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
 PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH, use_fast=True)
 
-
 _SOURCE_MAP = {
     "ios": "mobile",
     "android": "mobile",
