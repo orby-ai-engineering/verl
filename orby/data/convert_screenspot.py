@@ -33,7 +33,7 @@ from qwen_agent.llm.fncall_prompts.nous_fncall_prompt import (
     ContentItem,
 )
 from orby.utils.dataset.qwen_agent_function_call import ComputerUse
-from orby.data.prompts import get_sft_messages
+from orby.data.prompts import get_subtask_messages
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
 PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH, use_fast=True)
@@ -73,9 +73,9 @@ if __name__ == "__main__":
     # https://github.com/QwenLM/Qwen2.5-VL/blob/main/cookbooks/computer_use.ipynb
     parser.add_argument(
         "--prompt_format",
-        choices=["thinking", "qwen", "sft"],
+        choices=["thinking", "qwen", "subtask", "sft"],
         default="thinking",
-        help="Select prompt format: ['thinking', 'qwen', 'sft']",
+        help="Select prompt format: ['thinking', 'qwen', 'subtask', 'sft']",
     )
 
     args = parser.parse_args()
@@ -146,7 +146,14 @@ if __name__ == "__main__":
                     },
                 ]
             elif args.prompt_format == "sft":
-                prompt, _ = get_sft_messages(instruction, None, None)
+                data["prompt"] = [
+                    {
+                        "role": "user",
+                        "content": ("<image> Instruction: " + instruction),
+                    },
+                ]
+            elif args.prompt_format == "subtask":
+                prompt, _ = get_subtask_messages(instruction, None, None)
                 data["prompt"] = prompt
 
             elif args.prompt_format == "qwen":  # qwen format

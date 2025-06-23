@@ -36,7 +36,7 @@ from qwen_agent.llm.fncall_prompts.nous_fncall_prompt import (
     ContentItem,
 )
 from orby.utils.dataset.qwen_agent_function_call import ComputerUse
-from orby.data.prompts import get_sft_messages
+from orby.data.prompts import get_subtask_messages
 
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
@@ -163,9 +163,9 @@ if __name__ == "__main__":
     parser.add_argument("--output_filename", default="train")
     parser.add_argument(
         "--prompt_format",
-        choices=["qwen", "thinking", "sft"],
-        default="sft",
-        help="Select prompt format: 'qwen' or 'thinking' or 'sft'",
+        choices=["qwen", "thinking", "subtask", "sft"],
+        default="subtask",
+        help="Select prompt format: 'qwen' or 'thinking' or 'subtask' or 'sft'",
     )
     parser.add_argument(
         "--chunk_size",
@@ -184,6 +184,13 @@ if __name__ == "__main__":
         type=int,
         default=12500,
         help="Maximum examples per output parquet file",
+    )
+
+    parser.add_argument(
+        "--training_objective",
+        choices=[None, "sft"],
+        default=None,
+        help = "to add a response field in data, use 'sft' otherwise None"
     )
 
     args = parser.parse_args()
@@ -268,9 +275,15 @@ if __name__ == "__main__":
                     },
                 ]
             elif args.prompt_format == "sft":
-                prompt, response = get_sft_messages(instruction, center_x, center_y)
+                data["prompt"] = [
+                    {
+                        "role": "user",
+                        "content": ("<image> Instruction: " + example["instruction"]),
+                    },
+                ]
+            elif args.prompt_format == "subtask":
+                prompt, _ = get_subtask_messages(instruction, center_x, center_y)
                 data["prompt"] = prompt
-                data["response"] = response
             elif args.prompt_format == "qwen":
                 prompt = NousFnCallPrompt().preprocess_fncall_messages(
                     messages=[
@@ -303,19 +316,24 @@ if __name__ == "__main__":
                     message["content"] = content
 
                 data["prompt"] = prompt
+            
+            if args.training_objective == "sft":
+                _, response = get_subtask_messages(instruction, center_x, center_y)
+                data["response"] = response
+
 
             return data
 
         return process_fn
 
     local_dir = os.path.expanduser(args.local_dir)
-    if args.prompt_format == "sft":
+    if args.training_objective == "sft":
         local_dir += "_sft"
 
     print(f"Saving to {local_dir}...", flush=True)
     os.makedirs(local_dir, exist_ok=True)
 
-    if args.prompt_format == "sft":
+    if args.training_objective == "sft":
         # Set up progress tracking
         progress_file = os.path.join(local_dir, "processing_progress.json")
 

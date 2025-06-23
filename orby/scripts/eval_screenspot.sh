@@ -7,6 +7,9 @@ set -e
 # bash orby/scripts/eval_screenspot.sh --version screenspot_sft
 # bash orby/scripts/eval_screenspot.sh --version screenspot_v2_sft
 # bash orby/scripts/eval_screenspot.sh --version screenspot_pro_sft
+# bash orby/scripts/eval_screenspot.sh --version screenspot_subtask
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2_subtask
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro_subtask
 
 # Default values
 DATASET_VERSION="screenspot"
@@ -47,6 +50,21 @@ case $DATASET_VERSION in
     "screenspot_pro")
         DATA_PATH=~/data/screenspot_pro
         PARQUET_PATTERN="test.parquet"
+        ;;
+    "screenspot_subtask")
+        DATA_PATH=~/data/screenspot_subtask
+        PARQUET_PATTERN="test.parquet"
+        PROMPT_FORMAT="subtask"
+        ;;
+    "screenspot_v2_subtask")
+        DATA_PATH=~/data/screenspot_v2_subtask
+        PARQUET_PATTERN="test.parquet"
+        PROMPT_FORMAT="subtask"
+        ;;
+    "screenspot_pro_subtask")
+        DATA_PATH=~/data/screenspot_pro_subtask
+        PARQUET_PATTERN="test.parquet"
+        PROMPT_FORMAT="subtask"
         ;;
     "screenspot_sft")
         DATA_PATH=~/data/screenspot_sft
@@ -104,6 +122,20 @@ else
             python orby/data/convert_screenspot_v2.py --local_dir $DATA_PATH --image_dir=$DATA_PATH/screenspotv2_image/ --prompt_format "$PROMPT_FORMAT"
             ;;
         "screenspot_pro_sft")
+            huggingface-cli download likaixin/ScreenSpot-Pro --repo-type dataset --local-dir="$DATA_PATH"
+            python orby/data/convert_screenspot_pro.py --local_dir "$DATA_PATH" --image_dir="$DATA_PATH/images/" --annotations_dir="$DATA_PATH/annotations/" --prompt_format "$PROMPT_FORMAT"
+            ;;
+        "screenspot_subtask")
+            python3 -m orby.data.convert_screenspot --local_dir $DATA_PATH --prompt_format $PROMPT_FORMAT
+            ;;
+        "screenspot_v2_subtask")
+            huggingface-cli download OS-Copilot/ScreenSpot-v2 --repo-type dataset --local-dir=$DATA_PATH
+            cd $DATA_PATH
+            unzip screenspotv2_image.zip
+            cd -
+            python orby/data/convert_screenspot_v2.py --local_dir $DATA_PATH --image_dir=$DATA_PATH/screenspotv2_image/ --prompt_format "$PROMPT_FORMAT"
+            ;;
+        "screenspot_pro_subtask")
             huggingface-cli download likaixin/ScreenSpot-Pro --repo-type dataset --local-dir="$DATA_PATH"
             python orby/data/convert_screenspot_pro.py --local_dir "$DATA_PATH" --image_dir="$DATA_PATH/images/" --annotations_dir="$DATA_PATH/annotations/" --prompt_format "$PROMPT_FORMAT"
             ;;

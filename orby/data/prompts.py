@@ -129,9 +129,9 @@ Important: explore, explore, explore! The screenshot is not the entire webpage a
 Again, our goal is: {instruction}
 """
 
-def get_sft_messages(instruction: str, center_x: float, center_y: float):
-    """Generate SFT format messages for training."""
-    system_content = SFT_SYSTEM_PROMPT.format(action_hints=ACTION_HINTS)
+def get_subtask_messages(instruction: str, center_x: float, center_y: float):
+    """Generate subtask format messages for training."""
+    system_content = SVA3_EXECUTOR_PROMPT.format(action_hints=ACTION_HINTS)
     user_content = SUBTASK_USER_PROMPT.format(instruction=instruction)
 
     if center_x is not None and center_y is not None:
