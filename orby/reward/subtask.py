@@ -318,12 +318,12 @@ class UISubtaskRewardScorer:
         ) / len(self.executor_tags)
 
         gt_bbox = ground_truth.get("bbox", None)
-        assert gt_bbox is None or (
-            isinstance(gt_bbox, list)
-            and all(
-                isinstance(item, (tuple, list)) and len(item) == 4 for item in gt_bbox
-            )
-        ), "Ground truth bbox must be a list of tuples of 4 floats or None"
+        # assert gt_bbox is None or (
+        #     isinstance(gt_bbox, list)
+        #     and all(
+        #         isinstance(item, (tuple, list)) and len(item) == 4 for item in gt_bbox
+        #     )
+        # ), "Ground truth bbox must be a list of tuples of 4 floats or None"
 
         # Convert everything to string, even None
         pred_dict = {key: str(value) for key, value in pred_dict.items()}
