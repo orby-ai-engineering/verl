@@ -129,7 +129,7 @@ python3 -m orby.trainer.main_generation \
     rollout.response_length=256 \
     rollout.tensor_model_parallel_size=1 \
     rollout.gpu_memory_utilization=0.9 \
-    rollout.max_num_batched_tokens=65536 \
+    rollout.max_num_batched_tokens=65536
 
 # Evaluation
 python3 -m orby.trainer.main_eval \

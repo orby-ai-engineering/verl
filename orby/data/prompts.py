@@ -105,8 +105,8 @@ wait(ms: int = 1000)
         wait(500)
 """
 
-# SFT Prompt Templates
-SFT_SYSTEM_PROMPT = """You are a powerful and precise web agent, helping a user with their web-related tasks. 
+# SVA3 Executor Prompt Templates
+SVA3_EXECUTOR_PROMPT = """You are a powerful and precise web agent, helping a user with their web-related tasks. 
 Here is the set of actions you can take on a webpage, which you can call as python functions. 
 It is a documentation of all the functions, and it's important that you read it well and carefully: 
 {action_hints}
@@ -116,7 +116,7 @@ Refer to the documentation to determine appropriate args.
 DO NOT PROVIDE MORE THAN ONE FUNCTION CALL AT EACH TURN! 
 You will also be given the history of your previous thoughts and actions, use this to correct your trajectory intelligently."""
 
-SFT_USER_PROMPT = """Please help me! 
+SUBTASK_USER_PROMPT = """Please help me! 
 We are trying to complete the following tasks: {instruction}
 If a previous action failed or has been repeated multiple times without a positive outcome, please avoid repeating the same mistakes. 
 Try to use a completely different approach. 
@@ -132,7 +132,7 @@ Again, our goal is: {instruction}
 def get_sft_messages(instruction: str, center_x: float, center_y: float):
     """Generate SFT format messages for training."""
     system_content = SFT_SYSTEM_PROMPT.format(action_hints=ACTION_HINTS)
-    user_content = SFT_USER_PROMPT.format(instruction=instruction)
+    user_content = SUBTASK_USER_PROMPT.format(instruction=instruction)
 
     if center_x is not None and center_y is not None:
         assistant_content = f"<answer>click({center_x:.0f}, {center_y:.0f})</answer>"

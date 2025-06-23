@@ -43,7 +43,10 @@ class ScreenspotRewardScorer:
         Returns:
             Tuple of (x, y) coordinates or (None, None) if not found
         """
-        match = self.coordinate_pattern.search(answer_str.strip()) # This is changed from match to search tosearch for the exact coordinate (ignoring the click() part)
+        # Try to find click(x, y) format directly
+        match = self.coordinate_pattern.search(answer_str.strip())
+        if not match:
+            match = self.coordinate_pattern.match(answer_str.strip()) # Try with the original match() method
         if not match:
             return None, None
         x, y = match.groups()
