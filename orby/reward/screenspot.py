@@ -30,7 +30,8 @@ class ScreenspotRewardScorer:
         # <answer>1240 783</answer>
         self.thinking_pattern = re.compile(r"<think>(.*?)</think>", re.DOTALL)
         self.answer_pattern = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
-        self.coordinate_pattern = re.compile(r"click\((\d*\.?\d+),\s*(\d*\.?\d+)\)")
+        self.coordinate_pattern = re.compile(r"(\d*\.?\d+)\s+(\d*\.?\d+)")
+        self.click_pattern = re.compile(r"click\((\d*\.?\d+),\s*(\d*\.?\d+)\)")
 
     def _extract_coordinates(
         self, answer_str: str
@@ -44,7 +45,7 @@ class ScreenspotRewardScorer:
             Tuple of (x, y) coordinates or (None, None) if not found
         """
         # Try to find click(x, y) format directly
-        match = self.coordinate_pattern.search(answer_str.strip())
+        match = self.click_pattern.search(answer_str.strip())
         if not match:
             match = self.coordinate_pattern.match(answer_str.strip()) # Try with the original match() method
         if not match:
