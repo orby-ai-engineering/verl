@@ -30,7 +30,7 @@ command: |
   export REWARD_FN=training_reward_func
   export REWARD_FILE=orby/reward/subtask.py
   export COORDINATES_METRIC="gaussian"
-  export COORDINATES_GAUSSIAN_SIGMA=5
+  export COORDINATES_GAUSSIAN_SIGMA=2
   export COORDINATES_PIXEL_SQUARE_SIZE=10
 
   # Init environment
@@ -90,6 +90,7 @@ command: |
             data.filter_overlong_prompts=False \
             data.truncation='error' \
             data.image_key=images \
+            data.shuffle=True \
             actor_rollout_ref.model.path=$MODEL_NAME \
             actor_rollout_ref.actor.optim.lr=1e-6 \
             actor_rollout_ref.model.use_remove_padding=True \

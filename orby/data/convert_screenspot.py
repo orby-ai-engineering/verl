@@ -33,10 +33,10 @@ from qwen_agent.llm.fncall_prompts.nous_fncall_prompt import (
     ContentItem,
 )
 from orby.utils.dataset.qwen_agent_function_call import ComputerUse
-
+from orby.data.prompts import get_sft_messages
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
-PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH)
+PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH, use_fast=True)
 
 _SOURCE_MAP = {
     "ios": "mobile",
@@ -146,12 +146,8 @@ if __name__ == "__main__":
                     },
                 ]
             elif args.prompt_format == "sft":
-                data["prompt"] = [
-                    {
-                        "role": "user",
-                        "content": ("<image> Instruction: " + instruction),
-                    },
-                ]
+                prompt, _ = get_sft_messages(instruction, None, None)
+                data["prompt"] = prompt
 
             elif args.prompt_format == "qwen":  # qwen format
                 prompt = NousFnCallPrompt().preprocess_fncall_messages(
