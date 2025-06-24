@@ -75,11 +75,11 @@ command: |
     data.micro_batch_size_per_gpu=8 \
     data.train_files=$TRAIN_FILES \
     data.val_files=$VAL_FILES \
-    data.max_prompt_length=7680 \
-    data.max_response_length=512 \
-    data.filter_overlong_prompts=False \
+    +data.max_prompt_length=7680 \
+    +data.max_response_length=512 \
+    +data.filter_overlong_prompts=False \
     data.truncation='error' \
-    data.shuffle=True \
+    +data.shuffle=True \
     data.prompt_key=prompt \
     data.response_key=response \
     +data.image_key=images \
