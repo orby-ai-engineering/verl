@@ -82,6 +82,8 @@ class SFTDataset(Dataset):
             config.get("cache_dir", "~/.cache/verl/rlhf")
         )
         self.prompt_key = config.get("prompt_key", "prompt")
+        self.response_key = config.get("response_key", "extra_info")
+        self.response_dict_key = config.get("response_dict_keys", None)
         self.image_key = config.get("image_key", "images")
         self.video_key = config.get("video_key", "videos")
         self.max_prompt_length = config.get("max_prompt_length", 5000)
@@ -160,10 +162,15 @@ class SFTDataset(Dataset):
     def _build_messages(self, example: dict):
         messages: list = example.pop(self.prompt_key)
         # Add response messages if they exist (for SFT training)
-        response_key = "response"
-        if response_key in example:
-            response_messages = example.pop(response_key)
-            messages.extend(response_messages)
+        if self.response_key is not None and self.response_dict_key is None:
+            if self.response_key in example:
+                response_messages = example[self.response_key]
+                messages.extend(response_messages)
+        else:
+            if self.response_key in example and self.response_dict_key in example[self.response_key]:
+                response_messages = example[self.response_key].pop(self.response_dict_key)
+                messages.extend(response_messages)
+        
 
         if self.image_key in example or self.video_key in example:
             for message in messages:
