@@ -158,7 +158,7 @@ def process_json_file(json_path, image_dir, split, prompt_format="thinking"):
                 },
             ]
         elif prompt_format == "subtask":
-            prompt, _ = get_subtask_messages(example["instruction"], None, None)
+            prompt = get_subtask_messages(example["instruction"])
             data["prompt"] = prompt
             
         elif prompt_format == "qwen":  # qwen format

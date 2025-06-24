@@ -153,7 +153,7 @@ if __name__ == "__main__":
                     },
                 ]
             elif args.prompt_format == "subtask":
-                prompt, _ = get_subtask_messages(instruction, None, None)
+                prompt = get_subtask_messages(instruction)
                 data["prompt"] = prompt
 
             elif args.prompt_format == "qwen":  # qwen format

@@ -28,7 +28,7 @@ torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
     +processor.use_fast=true \
     +processor.trust_remote_code=true \
     optim.lr=1e-6 \
-    data.response_dict_keys=['answer'] \
+    data.response_dict_keys=answer \
     model.partial_pretrain=Qwen/Qwen2.5-VL-7B-Instruct \
     model.fsdp_config.cpu_offload=true \
     model.enable_gradient_checkpointing=true \
