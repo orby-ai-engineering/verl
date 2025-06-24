@@ -171,6 +171,15 @@ class SFTDataset(Dataset):
                 response_messages = example[self.response_key].pop(self.response_dict_key)
                 messages.extend(response_messages)
         
+        if self.response_key is not None and self.response_dict_key is None:
+            if self.response_key in example:
+                response_messages = example[self.response_key]
+                messages.extend(response_messages)
+        else:
+            if self.response_key in example and self.response_dict_key in example[self.response_key]:
+                response_messages = example[self.response_key].pop(self.response_dict_key)
+                messages.extend(response_messages)
+        
 
         if self.image_key in example or self.video_key in example:
             for message in messages:

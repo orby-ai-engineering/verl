@@ -225,10 +225,10 @@ if __name__ == "__main__":
             # Adjust bbox based on resize ratios. Uground labels range from
             # [0, 999]
             bbox = [
-                bbox[0] * resized_width / 999.0,
-                bbox[1] * resized_height / 999.0,
-                bbox[2] * resized_width / 999.0,
-                bbox[3] * resized_height / 999.0,
+                bbox[0] * resized_width / 1000.0,
+                bbox[1] * resized_height / 1000.0,
+                bbox[2] * resized_width / 1000.0,
+                bbox[3] * resized_height / 1000.0,
             ]
 
             ground_truth = {
