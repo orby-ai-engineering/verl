@@ -83,7 +83,7 @@ class SFTDataset(Dataset):
         )
         self.prompt_key = config.get("prompt_key", "prompt")
         self.response_key = config.get("response_key", "extra_info")
-        self.response_dict_key = config.get("response_dict_keys", "answer")
+        self.response_dict_key = config.get("response_dict_keys", None)
         self.image_key = config.get("image_key", "images")
         self.video_key = config.get("video_key", "videos")
         self.max_prompt_length = config.get("max_prompt_length", 5000)
