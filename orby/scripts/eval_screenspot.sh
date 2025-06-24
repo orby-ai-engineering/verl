@@ -9,8 +9,8 @@ set -e
 # bash orby/scripts/eval_screenspot.sh --version screenspot_pro_sft
 
 # Default values
-DATASET_VERSION="screenspot"
-MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
+DATASET_VERSION="screenspot-pro"
+MODEL_PATH=ByteDance-Seed/UI-TARS-1.5-7B
 REWARD_FILE=orby/reward/screenspot.py
 REWARD_FN=reward_func
 OUTPUT_FILE=result-test-output-1.parquet

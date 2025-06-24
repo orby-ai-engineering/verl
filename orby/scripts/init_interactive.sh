@@ -1,5 +1,5 @@
-YOUR_EMAIL=""
-YOUR_NAME=""
+YOUR_EMAIL="sanjari@orby.ai"
+YOUR_NAME="Sanjari Srivastava"
 if [ -z "$YOUR_EMAIL" ] || [ -z "$YOUR_NAME" ]; then
     echo "Please set YOUR_EMAIL and YOUR_NAME in the script"
     exit 1
@@ -12,14 +12,13 @@ git config --global user.name $YOUR_NAME
 sed -i 's|mirrors.tuna.tsinghua.edu.cn|archive.ubuntu.com|g' /etc/apt/sources.list
 
 apt update
-apt install -y emacs
 apt install -y awscli
 # urllib3<2 required by awscli
 pip install 'urllib3<2'
 pip install parquet-tools
 
 # Download model.
-python3 -c "import transformers; transformers.pipeline(model='Qwen/Qwen2.5-VL-7B-Instruct')"
+#python3 -c "import transformers; transformers.pipeline(model='Qwen/Qwen2.5-VL-7B-Instruct')"
 
 # Install verl lib: https://verl.readthedocs.io/en/latest/start/install.html
 pip3 install -e .[vllm]
