@@ -50,5 +50,4 @@ torchrun --standalone --nnodes=1 --nproc_per_node=$nproc_per_node \
     +model.use_remove_padding=true \
     model.fsdp_config.wrap_policy.min_num_params=1000000 \
     +model.fsdp_config.optimizer_offload=true
-    +model.tensor_parallel_size=8 \
-    +model.vocab_parallel=true
+

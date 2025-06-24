@@ -36,6 +36,7 @@ from qwen_agent.llm.fncall_prompts.nous_fncall_prompt import (
     ContentItem,
 )
 from orby.utils.dataset.qwen_agent_function_call import ComputerUse
+from orby.data.prompts import get_sft_messages
 
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
@@ -99,7 +100,7 @@ def save_in_chunks(
     return file_counter  # Return the next counter value
 
 
-def process_in_chunks(streaming_dataset, chunk_size=1000):
+def process_in_chunks(streaming_dataset, chunk_size=5000):
     """Process streaming dataset in chunks with immediate saving capability"""
     chunk = []
     total_processed = 0
@@ -169,7 +170,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--chunk_size",
         type=int,
-        default=1000,
+        default=5000,
         help="Number of examples to process at once",
     )
     parser.add_argument(
@@ -267,18 +268,9 @@ if __name__ == "__main__":
                     },
                 ]
             elif args.prompt_format == "sft":
-                data["prompt"] = [
-                    {
-                        "role": "user",
-                        "content": ("<image> Instruction: " + instruction),
-                    },
-                ]
-                data["response"] = [
-                    {
-                        "role": "assistant",
-                        "content": f"<answer>{center_x:.0f} {center_y:.0f}</answer>",
-                    }
-                ]
+                prompt, response = get_sft_messages(instruction, center_x, center_y)
+                data["prompt"] = prompt
+                data["response"] = response
             elif args.prompt_format == "qwen":
                 prompt = NousFnCallPrompt().preprocess_fncall_messages(
                     messages=[

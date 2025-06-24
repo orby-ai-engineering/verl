@@ -29,7 +29,7 @@ command: |
   export REWARD_FN=training_reward_func
   export REWARD_FILE=orby/reward/subtask.py
   export COORDINATES_METRIC="gaussian"
-  export COORDINATES_GAUSSIAN_SIGMA=5
+  export COORDINATES_GAUSSIAN_SIGMA=2
   export COORDINATES_PIXEL_SQUARE_SIZE=10
 
   # Init environment
@@ -52,6 +52,7 @@ command: |
   echo "Using interface: $INTERFACE"
   export GLOO_SOCKET_IFNAME=$INTERFACE
   export HF_HUB_ENABLE_HF_TRANSFER=1
+  export CUDA_LAUNCH_BLOCKING=1
 
   # Download model
   python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
@@ -105,7 +106,7 @@ command: |
             actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
             actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16 \
             actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=8192 \
-            actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+            actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
             actor_rollout_ref.rollout.name=vllm \
             actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
             actor_rollout_ref.rollout.enable_chunked_prefill=False \
