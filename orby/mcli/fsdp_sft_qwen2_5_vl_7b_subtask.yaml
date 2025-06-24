@@ -47,6 +47,8 @@ command: |
   echo "Using interface: $INTERFACE"
   export GLOO_SOCKET_IFNAME=$INTERFACE
   export HF_HUB_ENABLE_HF_TRANSFER=1
+  export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+  export CUDA_LAUNCH_BLOCKING=1
 
   # Downloads the model
   python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
@@ -72,7 +74,7 @@ command: |
     --master_port=${MASTER_PORT:-29500} \
     -m orby.trainer.fsdp_sft_trainer \
     data.train_batch_size=$TRAIN_BATCH_SIZE \
-    data.micro_batch_size_per_gpu=8 \
+    data.micro_batch_size_per_gpu=4 \
     data.train_files=$TRAIN_FILES \
     data.val_files=$VAL_FILES \
     +data.max_prompt_length=7680 \
