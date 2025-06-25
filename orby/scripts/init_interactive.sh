@@ -31,8 +31,7 @@ pip3 install -e .[vllm]
 # python orby/data/convert_action_description.py --input_file=~/data/action_description/raw/dev.parquet --split=test
 
 # Download the subtask direct distill dataset
-# mkdir -p ~/data/subtask_direct_distill/mix/train/
-# mkdir -p ~/data/subtask_direct_distill/mix/test/
+# # Separate E-RM datasets
 # aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/test/executor.parquet ~/data/subtask_direct_distill/mix/test/executor.parquet
 # aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/test/reward_model.parquet ~/data/subtask_direct_distill/mix/test/reward_model.parquet
 # aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/train/executor_block512mb/part-00000-tid-8818964477925489584-78825fd1-c751-4bef-9f26-0c77bbdb2020-258-1-c000.snappy.parquet ~/data/subtask_direct_distill/mix/train/executor.parquet
@@ -40,3 +39,6 @@ pip3 install -e .[vllm]
 # # Merged dataset
 # aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined.parquet ~/data/subtask_direct_distill/mix/test/combined.parquet
 # aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_block512mb/part-00000-tid-3008114883591573361-eb7554a3-5626-4452-8b82-4ba9fa62e452-352-1-c000.snappy.parquet ~/data/subtask_direct_distill/mix/train/combined.parquet
+# # Merged dataset with response
+# aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined_with_response/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet ~/data/subtask_direct_distill/mix/test/combined_with_response.parquet
+# aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_with_response/part-00000-tid-3712964276653840281-af2210b2-e910-4427-aa16-9f2a2cfdae0a-844-1-c000.snappy.parquet ~/data/subtask_direct_distill/mix/train/combined_with_response.parquet
