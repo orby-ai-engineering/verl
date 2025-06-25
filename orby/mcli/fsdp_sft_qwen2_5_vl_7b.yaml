@@ -60,8 +60,8 @@ command: |
     --master_addr=$MASTER_ADDR \
     --master_port=${MASTER_PORT:-29500} \
     -m orby.trainer.fsdp_sft_trainer \
-    data.train_batch_size=128 \
-    data.micro_batch_size_per_gpu=2 \
+    data.train_batch_size=64 \
+    data.micro_batch_size_per_gpu=1 \
     data.train_files="[$TRAIN_FILES]" \
     data.val_files="[$VAL_FILES]" \
     data.prompt_key=prompt \
