@@ -4,7 +4,7 @@ MODEL_PATH=checkpoints/sft-exp-1
 DATA_PATH=~/data/subtask_direct_distill/mix/test/combined_with_response.parquet
 
 # Grid search parameters
-TENSOR_PARALLEL_SIZES=(1 2 4)
+TENSOR_PARALLEL_SIZES=(1 4)
 BATCH_SIZES=(64 1024)
 
 # Create results directory
