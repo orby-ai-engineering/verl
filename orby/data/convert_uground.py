@@ -36,7 +36,7 @@ from qwen_agent.llm.fncall_prompts.nous_fncall_prompt import (
     ContentItem,
 )
 from orby.utils.dataset.qwen_agent_function_call import ComputerUse
-from orby.data.prompts import get_sft_messages
+from orby.data.prompts import get_subtask_messages
 
 
 MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
@@ -163,9 +163,9 @@ if __name__ == "__main__":
     parser.add_argument("--output_filename", default="train")
     parser.add_argument(
         "--prompt_format",
-        choices=["qwen", "thinking", "sft"],
-        default="sft",
-        help="Select prompt format: 'qwen' or 'thinking' or 'sft'",
+        choices=["qwen", "thinking", "subtask", "sft"],
+        default="subtask",
+        help="Select prompt format: 'qwen' or 'thinking' or 'subtask' or 'sft'",
     )
     parser.add_argument(
         "--chunk_size",
@@ -185,6 +185,7 @@ if __name__ == "__main__":
         default=12500,
         help="Maximum examples per output parquet file",
     )
+
 
     args = parser.parse_args()
 
@@ -237,6 +238,10 @@ if __name__ == "__main__":
             center_x = (bbox[0] + bbox[2]) / 2
             center_y = (bbox[1] + bbox[3]) / 2
 
+            answer = [
+                {"role": "assistant", "content": f"<answer>click({center_x:.0f}, {center_y:.0f})</answer>"}
+            ]
+
             data = {
                 "data_source": "uground",
                 "images": [image],
@@ -250,6 +255,7 @@ if __name__ == "__main__":
                     "index": idx,
                     "question": instruction,
                     "bounding_box": bbox,
+                    "answer": answer
                 },
             }
 
@@ -268,9 +274,15 @@ if __name__ == "__main__":
                     },
                 ]
             elif args.prompt_format == "sft":
-                prompt, response = get_sft_messages(instruction, center_x, center_y)
+                data["prompt"] = [
+                    {
+                        "role": "user",
+                        "content": ("<image> Instruction: " + example["instruction"]),
+                    },
+                ]
+            elif args.prompt_format == "subtask":
+                prompt = get_subtask_messages(instruction)
                 data["prompt"] = prompt
-                data["response"] = response
             elif args.prompt_format == "qwen":
                 prompt = NousFnCallPrompt().preprocess_fncall_messages(
                     messages=[
@@ -303,183 +315,92 @@ if __name__ == "__main__":
                     message["content"] = content
 
                 data["prompt"] = prompt
+            
+
 
             return data
 
         return process_fn
 
     local_dir = os.path.expanduser(args.local_dir)
-    if args.prompt_format == "sft":
-        local_dir += "_sft"
+
 
     print(f"Saving to {local_dir}...", flush=True)
     os.makedirs(local_dir, exist_ok=True)
 
-    if args.prompt_format == "sft":
-        # Set up progress tracking
-        progress_file = os.path.join(local_dir, "processing_progress.json")
+    # Set up progress tracking
+    progress_file = os.path.join(local_dir, "processing_progress.json")
 
-        # Check for existing progress
-        if os.path.exists(progress_file):
-            with open(progress_file, "r") as f:
-                progress = json.load(f)
-            if progress.get("status") == "completed":
-                print(
-                    f"✓ Processing already completed! Found {progress['total_processed']} examples",
-                    flush=True,
-                )
-                exit(0)
-            else:
-                print(
-                    f"Found previous progress: {progress['total_processed']} examples processed",
-                    flush=True,
-                )
-
-        # Initialize counters and directories
-        train_file_counter = 0
-        test_file_counter = 0
-        total_processed = 0
-
-        train_dir = os.path.join(local_dir, "train")
-        test_dir = os.path.join(local_dir, "test")
-
-        # Accumulators for batching
-        train_accumulator = []
-        test_accumulator = []
-        train_accumulator_size = 0
-        test_accumulator_size = 0
-
-        # Calculate save frequency - save every few chunks or when reaching file size limit
-        save_frequency_chunks = max(
-            1, args.max_examples_per_file // (args.chunk_size * 4)
-        )  # Save every N chunks
-        chunks_processed = 0
-
-        # Set up the map function for process_in_chunks
-        process_in_chunks.map_fn = make_map_fn("train")
-        process_in_chunks.max_examples = args.max_examples
-
-        try:
-            for chunk_dataset, chunk_start in process_in_chunks(
-                dataset, args.chunk_size
-            ):
-                # Split each chunk into train/test
-                chunk_split = chunk_dataset.train_test_split(train_size=0.8, seed=42)
-                train_chunk = chunk_split["train"]
-                test_chunk = chunk_split["test"]
-
-                # Add to accumulators
-                train_accumulator.append(train_chunk)
-                test_accumulator.append(test_chunk)
-                train_accumulator_size += len(train_chunk)
-                test_accumulator_size += len(test_chunk)
-
-                total_processed += len(chunk_dataset)
-                chunks_processed += 1
-
-                # Save conditions: either reached file size limit OR processed enough chunks for fault tolerance
-                should_save_train = (
-                    train_accumulator_size >= args.max_examples_per_file
-                    or chunks_processed >= save_frequency_chunks
-                )
-                should_save_test = (
-                    test_accumulator_size >= (args.max_examples_per_file // 4)
-                    or chunks_processed >= save_frequency_chunks
-                )
-
-                # Save train data
-                if should_save_train and train_accumulator:
-                    train_files_created = save_in_chunks(
-                        train_accumulator,
-                        train_dir,
-                        "train",
-                        args.max_examples_per_file,
-                        train_file_counter,
-                    )
-                    train_file_counter = (
-                        train_files_created  # Update counter for next call
-                    )
-                    train_accumulator = []
-                    train_accumulator_size = 0
-
-                # Save test data
-                if should_save_test and test_accumulator:
-                    test_files_created = save_in_chunks(
-                        test_accumulator,
-                        test_dir,
-                        "test",
-                        args.max_examples_per_file // 4,
-                        test_file_counter,
-                    )
-                    test_file_counter += test_files_created
-                    test_accumulator = []
-                    test_accumulator_size = 0
-
-                # Reset chunk counter if we saved
-                if should_save_train or should_save_test:
-                    chunks_processed = 0
-
-                # Update progress every few chunks
-                if (
-                    total_processed % (args.chunk_size * 2) == 0
-                ):  # Every 2 chunks instead of 5
-                    progress_info = {
-                        "total_processed": total_processed,
-                        "train_files_created": train_file_counter,
-                        "test_files_created": test_file_counter,
-                        "status": "in_progress",
-                    }
-                    with open(progress_file, "w") as f:
-                        json.dump(progress_info, f, indent=2)
-                    print(
-                        f"📊 Progress: {total_processed} examples processed, {train_file_counter} train files, {test_file_counter} test files",
-                        flush=True,
-                    )
-
-            # Save any remaining data (this will definitely run for your 2000 example test)
-            if train_accumulator:
-                train_files_created = save_in_chunks(
-                    train_accumulator,
-                    train_dir,
-                    "train",
-                    args.max_examples_per_file,
-                    train_file_counter,
-                )
-                train_file_counter = train_files_created  # Update counter for next call
-                train_accumulator = []
-                train_accumulator_size = 0
-
-            if test_accumulator:
-                test_files_created = save_in_chunks(
-                    test_accumulator,
-                    test_dir,
-                    "test",
-                    args.max_examples_per_file // 4,
-                    test_file_counter,
-                )
-                test_file_counter += test_files_created
-                test_accumulator = []
-                test_accumulator_size = 0
-
-            # Mark completion
-            final_progress = {
-                "total_processed": total_processed,
-                "train_files_created": train_file_counter,
-                "test_files_created": test_file_counter,
-                "status": "completed",
-            }
-            with open(progress_file, "w") as f:
-                json.dump(final_progress, f, indent=2)
-
+    # Check for existing progress
+    if os.path.exists(progress_file):
+        with open(progress_file, "r") as f:
+            progress = json.load(f)
+        if progress.get("status") == "completed":
             print(
-                f"✅ Processing completed! {total_processed} examples in {train_file_counter} train files and {test_file_counter} test files",
+                f"✓ Processing already completed! Found {progress['total_processed']} examples",
+                flush=True,
+            )
+            exit(0)
+        else:
+            print(
+                f"Found previous progress: {progress['total_processed']} examples processed",
                 flush=True,
             )
 
-        except Exception as e:
-            print(f"❌ Error occurred: {e}", flush=True)
-            # Save any accumulated data before crashing
-            if train_accumulator:
+    # Initialize counters and directories
+    train_file_counter = 0
+    test_file_counter = 0
+    total_processed = 0
+
+    train_dir = os.path.join(local_dir, "train")
+    test_dir = os.path.join(local_dir, "test")
+
+    # Accumulators for batching
+    train_accumulator = []
+    test_accumulator = []
+    train_accumulator_size = 0
+    test_accumulator_size = 0
+
+    # Calculate save frequency - save every few chunks or when reaching file size limit
+    save_frequency_chunks = max(
+        1, args.max_examples_per_file // (args.chunk_size * 4)
+    )  # Save every N chunks
+    chunks_processed = 0
+
+    # Set up the map function for process_in_chunks
+    process_in_chunks.map_fn = make_map_fn("train")
+    process_in_chunks.max_examples = args.max_examples
+
+    try:
+        for chunk_dataset, chunk_start in process_in_chunks(
+            dataset, args.chunk_size
+        ):
+            # Split each chunk into train/test
+            chunk_split = chunk_dataset.train_test_split(train_size=0.8, seed=42)
+            train_chunk = chunk_split["train"]
+            test_chunk = chunk_split["test"]
+
+            # Add to accumulators
+            train_accumulator.append(train_chunk)
+            test_accumulator.append(test_chunk)
+            train_accumulator_size += len(train_chunk)
+            test_accumulator_size += len(test_chunk)
+
+            total_processed += len(chunk_dataset)
+            chunks_processed += 1
+
+            # Save conditions: either reached file size limit OR processed enough chunks for fault tolerance
+            should_save_train = (
+                train_accumulator_size >= args.max_examples_per_file
+                or chunks_processed >= save_frequency_chunks
+            )
+            should_save_test = (
+                test_accumulator_size >= (args.max_examples_per_file // 4)
+                or chunks_processed >= save_frequency_chunks
+            )
+
+            # Save train data
+            if should_save_train and train_accumulator:
                 train_files_created = save_in_chunks(
                     train_accumulator,
                     train_dir,
@@ -491,7 +412,8 @@ if __name__ == "__main__":
                 train_accumulator = []
                 train_accumulator_size = 0
 
-            if test_accumulator:
+            # Save test data
+            if should_save_test and test_accumulator:
                 test_files_created = save_in_chunks(
                     test_accumulator,
                     test_dir,
@@ -499,34 +421,112 @@ if __name__ == "__main__":
                     args.max_examples_per_file // 4,
                     test_file_counter,
                 )
-                test_file_counter += test_files_created
+                test_file_counter = test_files_created
                 test_accumulator = []
                 test_accumulator_size = 0
 
-            # Save progress before crashing
-            error_progress = {
-                "total_processed": total_processed,
-                "train_files_created": train_file_counter,
-                "test_files_created": test_file_counter,
-                "status": "error",
-                "error_message": str(e),
-            }
-            with open(progress_file, "w") as f:
-                json.dump(error_progress, f, indent=2)
-            print(
-                f"📊 Progress saved: {total_processed} examples processed", flush=True
+            # Reset chunk counter if we saved
+            if should_save_train or should_save_test:
+                chunks_processed = 0
+
+            # Update progress every few chunks
+            if (
+                total_processed % (args.chunk_size * 2) == 0
+            ):  # Every 2 chunks instead of 5
+                progress_info = {
+                    "total_processed": total_processed,
+                    "train_files_created": train_file_counter,
+                    "test_files_created": test_file_counter,
+                    "status": "in_progress",
+                }
+                with open(progress_file, "w") as f:
+                    json.dump(progress_info, f, indent=2)
+                print(
+                    f"📊 Progress: {total_processed} examples processed, {train_file_counter} train files, {test_file_counter} test files",
+                    flush=True,
+                )
+
+        # Save any remaining data (this will definitely run for your 2000 example test)
+        if train_accumulator:
+            train_files_created = save_in_chunks(
+                train_accumulator,
+                train_dir,
+                "train",
+                args.max_examples_per_file,
+                train_file_counter,
             )
-            raise
-    else:
-        dataset = dataset.map(
-            function=make_map_fn("train"), with_indices=True, num_proc=16
+            train_file_counter = train_files_created  # Update counter for next call
+            train_accumulator = []
+            train_accumulator_size = 0
+
+        if test_accumulator:
+            test_files_created = save_in_chunks(
+                test_accumulator,
+                test_dir,
+                "test",
+                args.max_examples_per_file // 4,
+                test_file_counter,
+            )
+            test_file_counter = test_files_created
+            test_accumulator = []
+            test_accumulator_size = 0
+
+        # Mark completion
+        final_progress = {
+            "total_processed": total_processed,
+            "train_files_created": train_file_counter,
+            "test_files_created": test_file_counter,
+            "status": "completed",
+        }
+        with open(progress_file, "w") as f:
+            json.dump(final_progress, f, indent=2)
+
+        print(
+            f"✅ Processing completed! {total_processed} examples in {train_file_counter} train files and {test_file_counter} test files",
+            flush=True,
         )
-        dataset = dataset.cast_column("images", Sequence(ImageData()))
 
-        local_dir = os.path.expanduser(args.local_dir)
-        os.makedirs(local_dir, exist_ok=True)
+    except Exception as e:
+        print(f"❌ Error occurred: {e}", flush=True)
+        # Save any accumulated data before crashing
+        if train_accumulator:
+            train_files_created = save_in_chunks(
+                train_accumulator,
+                train_dir,
+                "train",
+                args.max_examples_per_file,
+                train_file_counter,
+            )
+            train_file_counter = train_files_created  # Update counter for next call
+            train_accumulator = []
+            train_accumulator_size = 0
 
-        dataset.to_parquet(os.path.join(local_dir, f"{args.output_filename}.parquet"))
+        if test_accumulator:
+            test_files_created = save_in_chunks(
+                test_accumulator,
+                test_dir,
+                "test",
+                args.max_examples_per_file // 4,
+                test_file_counter,
+            )
+            test_file_counter = test_files_created
+            test_accumulator = []
+            test_accumulator_size = 0
+
+        # Save progress before crashing
+        error_progress = {
+            "total_processed": total_processed,
+            "train_files_created": train_file_counter,
+            "test_files_created": test_file_counter,
+            "status": "error",
+            "error_message": str(e),
+        }
+        with open(progress_file, "w") as f:
+            json.dump(error_progress, f, indent=2)
+        print(
+            f"📊 Progress saved: {total_processed} examples processed", flush=True
+        )
+        raise
 
     if args.hdfs_dir is not None:
         makedirs(args.hdfs_dir)
