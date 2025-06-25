@@ -37,6 +37,7 @@ python orby/data/convert_os_atlas.py \
 import argparse
 import json
 import os
+import io
 
 from datasets import Sequence, Image as ImageData
 from PIL import Image
@@ -105,7 +106,7 @@ def save_in_chunks(
         else:
             # Save the chunk as-is
             output_file = os.path.join(
-                output_dir, f"{prefix}_part_{file_counter:04d}.parquet"
+                output_dir, f"os_atlas_{prefix}_part_{file_counter:04d}.parquet"
             )
             dataset_chunk.to_parquet(output_file)
             print(f"✓ Saved {len(dataset_chunk)} examples to {output_file}", flush=True)
@@ -166,12 +167,17 @@ def process_in_chunks(streaming_dataset, chunk_size=1000):
         yield processed_chunk, total_processed
 
 
-def load_os_atlas_data(json_path: str, image_dir: str):
+def load_os_atlas_data(json_path: str, image_dir: str, max_examples: int = None):
     """Load and process OS Atlas data from JSON and image directory."""
     with open(json_path, "r") as f:
         data = json.load(f)
+    
+    examples_yielded = 0
 
     for item in data:
+        if max_examples is not None and examples_yielded >= max_examples:
+            break
+
         img_filename = item["img_filename"]
         img_path = os.path.join(image_dir, img_filename)
 
@@ -182,6 +188,10 @@ def load_os_atlas_data(json_path: str, image_dir: str):
         # Load and process image
         image = Image.open(img_path)
 
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format=image.format or "PNG")
+        img_byte_arr = img_byte_arr.getvalue()
+
         # Process each element in the elements list
         for element in item["elements"]:
             instruction = element["instruction"]
@@ -190,12 +200,13 @@ def load_os_atlas_data(json_path: str, image_dir: str):
             # TODO: whether this works for from_generator() below.
             yield (
                 {
-                    "image": image,
+                    "image": img_byte_arr,
                     "instruction": instruction,
                     "bbox": bbox,
                     "img_filename": img_filename,
                 }
             )
+            examples_yielded += 1
 
 
 if __name__ == "__main__":
@@ -247,16 +258,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Load and process data
-    dataset = Dataset.from_generator(lambda: load_os_atlas_data(args.json_file, args.image_dir))
+    dataset = Dataset.from_generator( lambda: load_os_atlas_data(args.json_file, args.image_dir, args.max_examples)
+)
 
     def make_map_fn(split):
         def process_fn(example, idx):
-            image = example.pop("image")
+            image_bytes = example.pop("image")
             instruction = example.pop("instruction")
             bbox = example.pop("bbox") # [x1, y1, x2, y2] already normalized in [0, 1]
             img_filename = example.pop("img_filename")
 
             # Get image and resize ratios
+            image = Image.open(io.BytesIO(image_bytes))
+
             resized_height, resized_width = get_resized_wh(image)
 
             # Adjust bbox based on resize ratios
