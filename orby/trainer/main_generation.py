@@ -20,6 +20,7 @@ import os
 import hydra
 import numpy as np
 import ray
+from tqdm import tqdm
 
 os.environ["NCCL_DEBUG"] = "WARN"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -57,7 +58,7 @@ def _create_dataloader(config, tokenizer, processor):
     dataloader = StatefulDataLoader(
         dataset=dataset,
         batch_size=config.data.batch_size,
-        num_workers=config.data.get("dataloader_num_workers", 8),
+        num_workers=config.data.get("dataloader_num_workers", 64),
         shuffle=False,
         drop_last=False,
         collate_fn=default_collate_fn,
@@ -124,7 +125,7 @@ def main_task(config):
     output_lst = [[] for _ in range(config.data.n_samples)]
 
     batch_idx = 0
-    for batch_dict in dataset:
+    for batch_dict in tqdm(dataset, desc="Processing batches"):
         print(f"[{batch_idx + 1}] Start to process.")
         data = DataProto.from_single_dict(batch_dict)
 
