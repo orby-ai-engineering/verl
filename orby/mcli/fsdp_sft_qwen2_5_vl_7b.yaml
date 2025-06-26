@@ -10,7 +10,7 @@ integrations:
 command: |
   export NUM_NODES=4
   export MODEL_NAME=ByteDance-Seed/UI-TARS-1.5-7B
-  export EXPERIMENT_NAME=ui-tars-only-grounding-merged_prompt-sft-attempt-2
+  export EXPERIMENT_NAME=subtask-prompt-ui-tars-only-grounding-sft-attempt-3
   export PROJECT_NAME=uitars-sanjari
   export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask/$EXPERIMENT_NAME
 
@@ -81,7 +81,7 @@ command: |
     +data.image_key=images \
     +processor.use_fast=true \
     +processor.trust_remote_code=true \
-    optim.lr=1e-6 \
+    optim.lr=1e-5 \
     data.response_dict_keys=answer \
     model.partial_pretrain=$MODEL_NAME \
     model.fsdp_config.cpu_offload=true \
@@ -95,9 +95,9 @@ command: |
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.logger=[console,wandb] \
     trainer.default_hdfs_dir=null \
-    +trainer.val_interval=25 \
-    +trainer.save_interval=50 \
-    trainer.total_epochs=4 \
+    +trainer.val_interval=50 \
+    +trainer.save_interval=200 \
+    trainer.total_epochs=3 \
     ulysses_sequence_parallel_size=1 \
     use_remove_padding=false \
     +model.fsdp_config.reshard_after_forward=true \
