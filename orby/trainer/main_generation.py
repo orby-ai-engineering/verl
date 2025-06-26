@@ -118,12 +118,21 @@ def main_task(config):
     ray_cls_with_init = RayClassWithInitArgs(
         cls=ray.remote(ActorRolloutRefWorker), config=config, role="rollout"
     )
+    
+    print("Reached breakpoint 3.1") # TODO: remove
+    
     resource_pool = RayResourcePool(
         process_on_nodes=[config.trainer.n_gpus_per_node] * config.trainer.nnodes
     )
+    
+    print("Reached breakpoint 3.2") # TODO: remove
+    
     wg = RayWorkerGroup(
         resource_pool=resource_pool, ray_cls_with_init=ray_cls_with_init
     )
+    
+    print("Reached breakpoint 3.3") # TODO: remove
+    
     wg.init_model()
 
     print("Reached breakpoint 4") # TODO: remove
