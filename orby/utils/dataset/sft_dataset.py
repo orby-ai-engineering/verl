@@ -118,7 +118,7 @@ class SFTDataset(Dataset):
         dataframes = []
         for parquet_file in self.data_files:
             # read parquet files and cache
-            dataframe = datasets.load_dataset("parquet", data_files=parquet_file)[
+            dataframe = datasets.load_dataset("parquet", data_files=parquet_file, streaming=True)[
                 "train"
             ]
             dataframes.append(dataframe)
