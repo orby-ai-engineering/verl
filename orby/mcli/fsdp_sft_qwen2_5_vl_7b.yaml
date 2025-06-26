@@ -63,12 +63,13 @@ command: |
     data.train_batch_size=64 \
     data.micro_batch_size_per_gpu=1 \
     data.train_files="[$TRAIN_FILES]" \
-    data.val_files="[$VAL_FILES]" \
+    data.val_files=s3://orby-osu-va/Rishu-Uground-test/uground-osatlas/test/test_part_0000.parquet \
     data.prompt_key=prompt \
     data.response_key=extra_info \
     +data.image_key=images \
     +processor.use_fast=true \
     +processor.trust_remote_code=true \
+    +processor.max_pixels=1638400 \
     optim.lr=1e-6 \
     data.response_dict_keys=answer \
     model.partial_pretrain=$MODEL_NAME \

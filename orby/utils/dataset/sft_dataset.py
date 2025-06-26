@@ -124,7 +124,7 @@ class SFTDataset(Dataset):
             dataframes.append(dataframe)
         self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
         # commented out for streaming
-        # print(f"dataset len: {len(self.dataframe)}")
+        print(f"dataset len: {len(self.dataframe)}")
 
         # filter out too long prompts
         if self.filter_overlong_prompts:
