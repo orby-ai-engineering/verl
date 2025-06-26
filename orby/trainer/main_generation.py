@@ -121,8 +121,11 @@ def main_task(config):
     
     print("Reached breakpoint 3.1") # TODO: remove
     
+    tensor_parallel_size = config.rollout.get("tensor_model_parallel_size", 1)
+    processes_per_node = config.trainer.n_gpus_per_node // tensor_parallel_size
+
     resource_pool = RayResourcePool(
-        process_on_nodes=[config.trainer.n_gpus_per_node] * config.trainer.nnodes
+        process_on_nodes=[processes_per_node] * config.trainer.nnodes
     )
     
     print("Reached breakpoint 3.2") # TODO: remove
