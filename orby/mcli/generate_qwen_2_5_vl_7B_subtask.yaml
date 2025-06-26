@@ -81,6 +81,7 @@ command: |
         trainer.n_gpus_per_node=8 \
         data.path=$LOCAL_INPUT_PARQUET \
         data.prompt_key=prompt \
+        +data.response_key=prediction \
         data.batch_size=$BATCH_SIZE \
         +data.max_prompt_length=7680 \
         +data.filter_overlong_prompts=False \

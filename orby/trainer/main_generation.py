@@ -194,7 +194,8 @@ def main_task(config):
 
     # add to the data frame
     dataset = pd.read_parquet(config.data.path)
-    dataset["responses"] = output_lst
+    response_key = config.data.get("response_key", "responses")
+    dataset[response_key] = output_lst
 
     # write to a new parquet
     output_dir = os.path.dirname(config.data.output_path)
