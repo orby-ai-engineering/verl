@@ -54,7 +54,6 @@ def _create_dataloader(config, tokenizer, processor):
     """
     dataset = create_rl_dataset(config.data.path, config.data, tokenizer, processor)
     # return dataset
-    print("Reached breakpoint 1") # TODO: remove
 
     dataloader = StatefulDataLoader(
         dataset=dataset,
@@ -64,7 +63,6 @@ def _create_dataloader(config, tokenizer, processor):
         drop_last=False,
         collate_fn=default_collate_fn,
     )
-    print("Reached breakpoint 2") # TODO: remove
 
     assert len(dataloader) >= 1, "Dataloader is empty!"
 
@@ -113,13 +111,9 @@ def main_task(config):
         assert config.data.n_samples == 1, "When temperature=0, n_samples must be 1."
     assert config.data.n_samples >= 1, "n_samples should always >= 1"
 
-    print("Reached breakpoint 3") # TODO: remove
-
     ray_cls_with_init = RayClassWithInitArgs(
         cls=ray.remote(ActorRolloutRefWorker), config=config, role="rollout"
     )
-    
-    print("Reached breakpoint 3.1") # TODO: remove
     
     tensor_parallel_size = config.rollout.get("tensor_model_parallel_size", 1)
     processes_per_node = config.trainer.n_gpus_per_node // tensor_parallel_size
@@ -128,17 +122,11 @@ def main_task(config):
         process_on_nodes=[processes_per_node] * config.trainer.nnodes
     )
     
-    print("Reached breakpoint 3.2") # TODO: remove
-    
     wg = RayWorkerGroup(
         resource_pool=resource_pool, ray_cls_with_init=ray_cls_with_init
     )
     
-    print("Reached breakpoint 3.3") # TODO: remove
-    
     wg.init_model()
-
-    print("Reached breakpoint 4") # TODO: remove
 
     output_lst = [[] for _ in range(config.data.n_samples)]
 
