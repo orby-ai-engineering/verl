@@ -118,13 +118,13 @@ class SFTDataset(Dataset):
         dataframes = []
         for parquet_file in self.data_files:
             # read parquet files and cache
-            dataframe = datasets.load_dataset("parquet", data_files=parquet_file, streaming=True)[
+            dataframe = datasets.load_dataset("parquet", data_files=parquet_file)[
                 "train"
             ]
             dataframes.append(dataframe)
         self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
-
-        print(f"dataset len: {len(self.dataframe)}")
+        # commented out for streaming
+        # print(f"dataset len: {len(self.dataframe)}")
 
         # filter out too long prompts
         if self.filter_overlong_prompts:
