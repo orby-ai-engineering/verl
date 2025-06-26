@@ -1,0 +1,102 @@
+name: verl-generate-subtask-7b
+
+image: whatcanyousee/verl:ngc-cu124-vllm0.8.3-sglang0.4.5-mcore0.12.0-te2.2
+
+integrations:
+  - integration_type: git_repo
+    git_repo: orby-ai-engineering/verl
+    git_branch: cheng/generation-scripts
+    pip_install: .
+    ssh_clone: true
+
+compute:
+  gpus: 64 # Number of GPUs to use
+  cluster: r8z13p2
+  gpu_type: h100_80gb
+
+command: |
+  # Set these variables before running the script.
+  export GENERATED_DATASET_NAME="SET THE GENERATED DATASET NAME HERE"
+  export NUM_NODES=8
+  export S3_MODEL_CHECKPOINT=s3://orby-osu-va/verl-checkpoints/subtask_sft/sft_experiment_1_Qwen-2.5-VL-7B_e_rm_combined_68k_data_1_epoch_128_batch_size/global_step_532/
+  export S3_INPUT_PARQUET=s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_with_response/part-00000-tid-3712964276653840281-af2210b2-e910-4427-aa16-9f2a2cfdae0a-844-1-c000.snappy.parquet
+  export S3_OUTPUT_PARQUET=s3://orby-osu-va/subtask/verl/experiment_2/generated/${GENERATED_DATASET_NAME}.parquet
+
+  # Set environment variables
+  export N_SAMPLES=4
+  export TEMPERATURE=0.1
+  export BATCH_SIZE=1024
+  export LOCAL_MODEL_CHECKPOINT=$HOME/model_checkpoint
+  export LOCAL_INPUT_PARQUET=$HOME/data/subtask_direct_distill/mix/train/combined_with_response.parquet
+  export LOCAL_OUTPUT_PARQUET=$HOME/generated_dataset
+  export REWARD_FN=training_reward_func
+  export REWARD_FILE=orby/reward/subtask.py
+  export COORDINATES_METRIC="gaussian"
+  export COORDINATES_GAUSSIAN_SIGMA=5
+  export COORDINATES_PIXEL_SQUARE_SIZE=10
+
+  # Init environment
+  cd /workspace/verl
+  sed -i 's|mirrors.tuna.tsinghua.edu.cn|us.archive.ubuntu.com|g' /etc/apt/sources.list
+  apt update
+  apt install iproute2 -y
+  apt install -y dnsutils
+  apt install -y emacs
+  apt install -y awscli
+  pip install 'urllib3<2'
+  pip install s3fs
+  pip install parquet-tools
+  pip install sgl-kernel
+  pip install boto3
+
+  # Set environment variables
+  export HYDRA_FULL_ERROR=1
+  INTERFACE=$(ip route | grep default | awk '{print $5}' | head -1)
+  echo "Using interface: $INTERFACE"
+  export GLOO_SOCKET_IFNAME=$INTERFACE
+  export HF_HUB_ENABLE_HF_TRANSFER=1
+  export CUDA_LAUNCH_BLOCKING=1
+
+  # Install verl lib: https://verl.readthedocs.io/en/latest/start/install.html
+  pip3 install -e .[vllm]
+
+  # Download model
+  aws s3 cp $S3_MODEL_CHECKPOINT $LOCAL_MODEL_CHECKPOINT --recursive
+
+  # Download merged datasets
+  aws s3 cp $S3_INPUT_PARQUET $LOCAL_INPUT_PARQUET
+
+  # Generate dataset
+  python3 -m orby.trainer.main_generation \
+    trainer.nnodes=$NUM_NODES \
+    trainer.n_gpus_per_node=8 \
+    data.path=$LOCAL_INPUT_PARQUET \
+    data.prompt_key=prompt \
+    data.batch_size=$BATCH_SIZE \
+    +data.max_prompt_length=7680 \
+    data.n_samples=$N_SAMPLES \
+    data.output_path=$LOCAL_OUTPUT_PARQUET \
+    model.path=$LOCAL_MODEL_CHECKPOINT \
+    rollout.temperature=$TEMPERATURE \
+    rollout.top_p=1.0 \
+    rollout.prompt_length=7680 \
+    rollout.response_length=512 \
+    rollout.tensor_model_parallel_size=1 \
+    rollout.gpu_memory_utilization=0.9 \
+    rollout.max_num_batched_tokens=65536 \
+    +rollout.limit_images=3
+
+  # Evaluation
+  python3 -m orby.trainer.main_eval \
+      data.path=$LOCAL_OUTPUT_PARQUET \
+      data.prompt_key=prompt \
+      data.response_key=prediction \
+      +data.save_scores=True \
+      custom_reward_function.path=$REWARD_FILE \
+      custom_reward_function.name=$REWARD_FN \
+      +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \
+      +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
+      +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE
+
+  # Upload dataset to S3
+  aws s3 cp $LOCAL_OUTPUT_PARQUET $S3_OUTPUT_PARQUET
