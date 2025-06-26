@@ -4,11 +4,21 @@ ENGINE=${1:-vllm}
 # If you are using vllm<=0.6.3, you might need to set the following environment variable to avoid bugs:
 # export VLLM_ATTENTION_BACKEND=XFORMERS
 
-TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined_with_response.parquet
-VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/combined_with_response.parquet
+export EXPERIMENT_NAME="hsmv2_distill_grpo_9k_qwen7b_bbox_batch_size_32"
+export NUM_NODES=1
+export TRAIN_BATCH_SIZE=32
+export MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
+export PROJECT_NAME=hsmv2_distilled_data_bbox
+export S3_CHECKPOINT_DIR=s3://orby-osu-va/subtask/verl/hsmv2_distill/checkpoints/$EXPERIMENT_NAME
 
-REWARD_FILE=orby/reward/subtask.py
-REWARD_FN=training_reward_func
+# Set training environment variables
+export TRAIN_FILES=/workspace/datasets/subtask/executor_dataset/train_verl_data.parquet
+export VAL_FILES=/workspace/datasets/subtask/executor_dataset/test_verl_data.parquet
+export REWARD_FN=training_reward_func
+export REWARD_FILE=orby/reward/subtask.py
+export COORDINATES_METRIC="bbox"
+export COORDINATES_GAUSSIAN_SIGMA=5
+export COORDINATES_PIXEL_SQUARE_SIZE=10
 
 echo "If you encounter OOM, try tweaking the following parameters:"
 echo "data.train_batch_size"
@@ -21,6 +31,9 @@ echo "actor_rollout_ref.rollout.n"
 python3 -m verl.trainer.main_ppo \
     custom_reward_function.path=$REWARD_FILE \
     custom_reward_function.name=$REWARD_FN \
+    +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \
+    +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
+    +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE \
     algorithm.adv_estimator=grpo \
     data.train_files=$TRAIN_FILES \
     data.val_files=$VAL_FILES \
@@ -61,8 +74,8 @@ python3 -m verl.trainer.main_ppo \
     algorithm.use_kl_in_reward=False \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
-    trainer.project_name='verl_grpo_example_subtask' \
-    trainer.experiment_name='qwen2_5_vl_7b_subtask' \
+    trainer.project_name=$PROJECT_NAME \
+    trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.save_freq=100 \

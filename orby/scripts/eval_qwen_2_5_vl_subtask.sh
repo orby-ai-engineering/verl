@@ -22,9 +22,9 @@ python3 -m orby.trainer.main_generation \
     rollout.top_p=1.0 \
     rollout.prompt_length=7680 \
     rollout.response_length=512 \
-    rollout.tensor_model_parallel_size=1 \
-    rollout.gpu_memory_utilization=0.9 \
-    rollout.max_num_batched_tokens=65536 \
+    rollout.tensor_model_parallel_size=2 \
+    rollout.gpu_memory_utilization=0.7 \
+    rollout.max_num_batched_tokens=32768 \
     +rollout.limit_images=3
 
 # Evaluation

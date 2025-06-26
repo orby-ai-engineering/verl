@@ -392,6 +392,10 @@ def process_validation_metrics(data_sources: list[str], sample_inputs: list[str]
                         n *= 2
                     ns.append(n_resps)
 
+                    if n_resps == 5:
+                        print(var_name)
+                        print(var_vals)
+
                     for n in ns:
                         [(bon_mean, bon_std), (won_mean, won_std)] = bootstrap_metric(data=var_vals, subset_size=n, reduce_fns=[np.max, np.min], seed=seed)
                         metric[f"best@{n}/mean"], metric[f"best@{n}/std"] = bon_mean, bon_std

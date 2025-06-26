@@ -5,30 +5,30 @@ image: whatcanyousee/verl:ngc-cu124-vllm0.8.3-sglang0.4.5-mcore0.12.0-te2.2
 integrations:
   - integration_type: git_repo
     git_repo: orby-ai-engineering/verl
-    git_branch: main
+    git_branch: mpk/hsmv2_data_training
     pip_install: .
     ssh_clone: true
 
 compute:
-  gpus: 16 # Number of GPUs to use
+  gpus: 32 # Number of GPUs to use
   cluster: r8z13p2
   gpu_type: h100_80gb
 
 command: |
   # Set these variables before running the script.
-  export EXPERIMENT_NAME="SET THE EXPERIMENT NAME HERE"
-  export NUM_NODES=2
-  export TRAIN_BATCH_SIZE=64
+  export EXPERIMENT_NAME="hsmv2_distill_grpo_9k_qwen7b_batchsize_32_reward_bbox_nrollout_16"
+  export NUM_NODES=4
+  export TRAIN_BATCH_SIZE=32
   export MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
-  export PROJECT_NAME=verl_grpo_example_subtask
-  export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask/$EXPERIMENT_NAME
+  export PROJECT_NAME=hsmv2_distilled_data_bbox
+  export S3_CHECKPOINT_DIR=s3://orby-osu-va/subtask/hsmv2_distill/checkpoints/9k_bbox/$EXPERIMENT_NAME
 
   # Set training environment variables
-  export TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined.parquet
-  export VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/combined.parquet
+  export TRAIN_FILES=$HOME/data/hsmv2_distill/9k_bbox/train.parquet
+  export VAL_FILES=$HOME/data/hsmv2_distill/9k_bbox/test.parquet
   export REWARD_FN=training_reward_func
   export REWARD_FILE=orby/reward/subtask.py
-  export COORDINATES_METRIC="gaussian"
+  export COORDINATES_METRIC="bbox"
   export COORDINATES_GAUSSIAN_SIGMA=2
   export COORDINATES_PIXEL_SQUARE_SIZE=10
 
@@ -61,10 +61,9 @@ command: |
   pip3 install -e .[vllm]
 
   # Download merged datasets
-  mkdir -p ~/data/subtask_direct_distill/mix/train/
-  mkdir -p ~/data/subtask_direct_distill/mix/test/
-  aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined.parquet $VAL_FILES
-  aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_block512mb/part-00000-tid-3008114883591573361-eb7554a3-5626-4452-8b82-4ba9fa62e452-352-1-c000.snappy.parquet $TRAIN_FILES
+  mkdir -p $HOME/data/hsmv2_distill/9k_bbox/
+  aws s3 cp s3://orby-osu-va/subtask/hsmv2_distill/datasets/9k_bbox/train.parquet $TRAIN_FILES
+  aws s3 cp s3://orby-osu-va/subtask/hsmv2_distill/datasets/9k_bbox/test.parquet $VAL_FILES
 
   # Start ray cluster and wait for all nodes
   bash orby/scripts/run_ray.sh $NUM_NODES
@@ -112,7 +111,7 @@ command: |
             actor_rollout_ref.rollout.enable_chunked_prefill=False \
             actor_rollout_ref.rollout.enforce_eager=True \
             actor_rollout_ref.rollout.free_cache_engine=True \
-            actor_rollout_ref.rollout.n=4 \
+            actor_rollout_ref.rollout.n=16 \
             actor_rollout_ref.rollout.max_model_len=8192 \
             +actor_rollout_ref.rollout.limit_images=3 \
             actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=16 \
@@ -125,8 +124,8 @@ command: |
             trainer.experiment_name=$EXPERIMENT_NAME \
             trainer.n_gpus_per_node=8 \
             trainer.nnodes=$NUM_NODES \
-            trainer.save_freq=100 \
-            trainer.test_freq=100 \
+            trainer.save_freq=10 \
+            trainer.test_freq=10 \
             trainer.s3_checkpoint_dir=$S3_CHECKPOINT_DIR \
             trainer.total_epochs=1 $@ | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
       ray stop
