@@ -135,12 +135,13 @@ def main_task(config):
     
     # Read original parquet file metadata without loading data
     parquet_file = pq.ParquetFile(config.data.path)
-    original_schema = parquet_file.schema
+    original_schema = parquet_file.schema_arrow
     response_key = config.data.get("response_key", "responses")
     
-    # Add response column to schema
+    # Add response column to schema - create new schema with additional field
     response_field = pa.field(response_key, pa.list_(pa.string()))
-    new_schema = original_schema.append(response_field)
+    new_fields = list(original_schema) + [response_field]
+    new_schema = pa.schema(new_fields)
     
     # Initialize parquet writer
     parquet_writer = pq.ParquetWriter(config.data.output_path, new_schema)
