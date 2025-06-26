@@ -18,6 +18,7 @@ Generate responses given a dataset of prompts. Multimodal input is supported.
 import os
 
 import hydra
+import numpy as np
 import ray
 from tqdm import tqdm
 
@@ -27,8 +28,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 from pprint import pprint
 
-import pyarrow as pa
-import pyarrow.parquet as pq
+import pandas as pd
 from omegaconf import OmegaConf
 from torchdata.stateful_dataloader import StatefulDataLoader
 
@@ -128,28 +128,9 @@ def main_task(config):
     
     wg.init_model()
 
-    # Initialize streaming output writer
-    output_dir = os.path.dirname(config.data.output_path)
-    if output_dir != "":
-        makedirs(output_dir, exist_ok=True)
-    
-    # Read original parquet file metadata without loading data
-    parquet_file = pq.ParquetFile(config.data.path)
-    original_schema = parquet_file.schema
-    response_key = config.data.get("response_key", "responses")
-    
-    # Add response column to schema
-    response_field = pa.field(response_key, pa.list_(pa.string()))
-    new_schema = original_schema.append(response_field)
-    
-    # Initialize parquet writer
-    parquet_writer = pq.ParquetWriter(config.data.output_path, new_schema)
-    
-    # Create a batch iterator to read original data in chunks
-    batch_iterator = parquet_file.iter_batches(batch_size=config.data.batch_size)
-    
+    output_lst = [[] for _ in range(config.data.n_samples)]
+
     batch_idx = 0
-    
     for batch_dict in tqdm(dataset, desc="Processing batches"):
         print(f"[{batch_idx + 1}] Start to process.")
         data = DataProto.from_single_dict(batch_dict)
@@ -171,15 +152,13 @@ def main_task(config):
 
         data_padded, pad_size = pad_dataproto_to_divisor(data, wg.world_size)
 
-        # Collect outputs for this batch
-        batch_outputs = [[] for _ in range(len(data))]
-        
         # START TO GENERATE FOR n_samples TIMES
         print(f"[{batch_idx + 1}] Start to generate.")
         for n_sample in range(config.data.n_samples):
             output_padded = wg.generate_sequences(data_padded)
             output = unpad_dataproto(output_padded, pad_size=pad_size)
 
+            output_texts = []
             for i in range(len(output)):
                 data_item = output[i]
                 prompt_length = data_item.batch["prompts"].shape[-1]
@@ -192,40 +171,25 @@ def main_task(config):
                 response_str = tokenizer.decode(
                     valid_response_ids, skip_special_tokens=True
                 )
-                batch_outputs[i].append(response_str)
-        
-        # Read corresponding batch from original dataset
-        try:
-            original_batch = next(batch_iterator)
-            original_df = original_batch.to_pandas()
-            
-            # Ensure batch sizes match
-            actual_batch_size = min(len(batch_outputs), len(original_df))
-            original_df = original_df.iloc[:actual_batch_size]
-            batch_outputs = batch_outputs[:actual_batch_size]
-            
-            # Add responses
-            original_df[response_key] = batch_outputs
-            
-            # Convert back to arrow table
-            output_table = pa.Table.from_pandas(original_df, schema=new_schema, preserve_index=False)
-            
-            # Write batch to output file
-            parquet_writer.write_table(output_table)
-            
-            # Clear memory
-            del batch_outputs, original_df, output_table
-            
-        except StopIteration:
-            print("Warning: Reached end of original dataset before processing completed")
-            break
-        
+                output_texts.append(response_str)
+
+            output_lst[n_sample].extend(output_texts)
         batch_idx += 1
-    
-    # Close writer
-    parquet_writer.close()
-    
-    print(f"Successfully processed {batch_idx} batches and saved to {config.data.output_path}")
+
+    # convert output_lst from (n_samples, n_data) to (n_data, n_sampels)
+    output_lst = np.array(output_lst, dtype=object)
+    output_lst = np.transpose(output_lst, axes=(1, 0)).tolist()
+
+    # add to the data frame
+    dataset = pd.read_parquet(config.data.path)
+    response_key = config.data.get("response_key", "responses")
+    dataset[response_key] = output_lst
+
+    # write to a new parquet
+    output_dir = os.path.dirname(config.data.output_path)
+    if output_dir != "":
+        makedirs(output_dir, exist_ok=True)
+    dataset.to_parquet(config.data.output_path)
 
 
 if __name__ == "__main__":
