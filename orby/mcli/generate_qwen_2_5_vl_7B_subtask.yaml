@@ -74,6 +74,7 @@ command: |
     data.prompt_key=prompt \
     data.batch_size=$BATCH_SIZE \
     +data.max_prompt_length=7680 \
+    +data.filter_overlong_prompts=False \
     data.n_samples=$N_SAMPLES \
     data.output_path=$LOCAL_OUTPUT_PARQUET \
     model.path=$LOCAL_MODEL_CHECKPOINT \
