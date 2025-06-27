@@ -110,39 +110,24 @@ def main_task(config):
     if config.rollout.temperature == 0.0:
         assert config.data.n_samples == 1, "When temperature=0, n_samples must be 1."
     assert config.data.n_samples >= 1, "n_samples should always >= 1"
-    
-    print("Breakpoint 1")
 
     ray_cls_with_init = RayClassWithInitArgs(
         cls=ray.remote(ActorRolloutRefWorker), config=config, role="rollout"
     )
-    
-    print("Breakpoint 2")
-    
-    # tensor_parallel_size = config.rollout.get("tensor_model_parallel_size", 1)
-    processes_per_node = config.trainer.n_gpus_per_node # // tensor_parallel_size
-
-    print("Breakpoint 3")
-
     resource_pool = RayResourcePool(
-        process_on_nodes=[processes_per_node] * config.trainer.nnodes
+        process_on_nodes=[config.trainer.n_gpus_per_node] * config.trainer.nnodes
     )
-    
-    print("Breakpoint 4")
-    
     wg = RayWorkerGroup(
         resource_pool=resource_pool, ray_cls_with_init=ray_cls_with_init
     )
-    
-    print("Breakpoint 5")
+
+    print("Breakpoint 1")
     
     wg.init_model()
 
-    print("Breakpoint 6")
+    print("Breakpoint 2")
     
     output_lst = [[] for _ in range(config.data.n_samples)]
-
-    print("Breakpoint 7")
 
     batch_idx = 0
     for batch_dict in tqdm(dataset, desc="Processing batches"):
