@@ -58,7 +58,7 @@ def _create_dataloader(config, tokenizer, processor):
     dataloader = StatefulDataLoader(
         dataset=dataset,
         batch_size=config.data.batch_size,
-        num_workers=config.data.get("dataloader_num_workers", 64),
+        num_workers=config.data.get("dataloader_num_workers", 8),
         shuffle=False,
         drop_last=False,
         collate_fn=default_collate_fn,
