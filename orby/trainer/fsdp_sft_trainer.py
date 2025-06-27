@@ -554,6 +554,16 @@ class FSDPSFTTrainer:
             # Create mask for last tokens
             last_token_mask = position_indices == last_token_positions.unsqueeze(1)
             loss_mask = loss_mask.masked_fill(last_token_mask, 0)
+            
+            # Debug prints
+            # print("\n=== Debug Info ===")
+            # print("Full prompt:")
+            # print(self.tokenizer.decode(input_ids[0]))
+            # print("\nPart under loss (non-zero loss mask):")
+            # print(self.tokenizer.decode(input_ids[0][loss_mask[0].bool()]))
+            # print(f"\nTotal tokens under loss: {loss_mask.sum().item()}")
+            # print("================\n")
+
             # Remove last column and flatten
             loss_mask = loss_mask[:, :-1].reshape(-1).to(self.device_name)
         loss_fct = nn.CrossEntropyLoss(reduction="none")
