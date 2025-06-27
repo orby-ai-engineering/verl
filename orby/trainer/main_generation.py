@@ -120,12 +120,8 @@ def main_task(config):
     wg = RayWorkerGroup(
         resource_pool=resource_pool, ray_cls_with_init=ray_cls_with_init
     )
-
-    print("Breakpoint 1")
     
     wg.init_model()
-
-    print("Breakpoint 2")
     
     output_lst = [[] for _ in range(config.data.n_samples)]
 
