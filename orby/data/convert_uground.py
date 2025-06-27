@@ -244,8 +244,8 @@ if __name__ == "__main__":
                     "index": idx,
                     "question": instruction,
                     "bounding_box": bbox,
-                    "answer": answer
                 },
+                "response": answer
             }
 
             # Create prompt based on selected format
