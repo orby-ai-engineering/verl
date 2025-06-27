@@ -31,7 +31,7 @@ python3 -m orby.trainer.main_generation \
 python3 -m orby.trainer.main_eval \
     data.path=$OUTPUT_FILE \
     data.prompt_key=prompt \
-    data.response_key=prediction \
+    data.response_key=responses \
     +data.save_scores=True \
     custom_reward_function.path=$REWARD_FILE \
     custom_reward_function.name=$REWARD_FN \
