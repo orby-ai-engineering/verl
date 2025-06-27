@@ -162,7 +162,6 @@ class SFTDataset(Dataset):
     def _build_messages(self, example: dict):
         messages: list = example.pop(self.prompt_key)
         # SFT Training will always assume that the response_key is 'response' (which is different from verl which assumes that it is in the extra_info dict under the key 'answer')
-        response_messages = None
         if self.response_key is not "response" or self.response_key not in example:
             raise ValueError(f"response_key '{self.response_key}' is not set to 'response' or is not present in example. Available keys: {list(example.keys())}")
         
