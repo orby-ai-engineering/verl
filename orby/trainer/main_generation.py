@@ -58,7 +58,7 @@ def _create_dataloader(config, tokenizer, processor):
     dataloader = StatefulDataLoader(
         dataset=dataset,
         batch_size=config.data.batch_size,
-        num_workers=config.data.get("dataloader_num_workers", 8),
+        num_workers=config.data.get("dataloader_num_workers", 16),
         shuffle=False,
         drop_last=False,
         collate_fn=default_collate_fn,
@@ -91,7 +91,7 @@ def run_generation(config) -> None:
     ray.get(main_task.remote(config))
 
 
-@ray.remote(num_cpus=1)
+@ray.remote(num_cpus=64)
 def main_task(config):
     pprint(
         OmegaConf.to_container(config, resolve=True)
