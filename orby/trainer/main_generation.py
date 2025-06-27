@@ -119,8 +119,8 @@ def main_task(config):
     
     print("Breakpoint 2")
     
-    tensor_parallel_size = config.rollout.get("tensor_model_parallel_size", 1)
-    processes_per_node = config.trainer.n_gpus_per_node // tensor_parallel_size
+    # tensor_parallel_size = config.rollout.get("tensor_model_parallel_size", 1)
+    processes_per_node = config.trainer.n_gpus_per_node # // tensor_parallel_size
 
     print("Breakpoint 3")
 
