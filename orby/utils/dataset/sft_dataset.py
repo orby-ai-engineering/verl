@@ -168,7 +168,7 @@ class SFTDataset(Dataset):
         response_messages = ""
 
         response_messages = example[self.response_key]
-        if response_messages is not "":
+        if response_messages:
             messages.extend(response_messages)
         else:
             raise ValueError("No response messages found in example")
