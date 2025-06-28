@@ -1,12 +1,23 @@
 set -e
 
-# How to run:
+## How to run:
 # bash orby/scripts/eval_screenspot.sh --version screenspot
 # bash orby/scripts/eval_screenspot.sh --version screenspot_v2
 # bash orby/scripts/eval_screenspot.sh --version screenspot_pro
 # bash orby/scripts/eval_screenspot.sh --version screenspot_sft
 # bash orby/scripts/eval_screenspot.sh --version screenspot_v2_sft
 # bash orby/scripts/eval_screenspot.sh --version screenspot_pro_sft
+# bash orby/scripts/eval_screenspot.sh --version screenspot_subtask
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2_subtask
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro_subtask
+
+## If you want to run 72B model, you need to run the following command:
+# bash orby/scripts/eval_screenspot.sh --version screenspot --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2 --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_sft --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2_sft --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro_sft --model_size 72
 # bash orby/scripts/eval_screenspot.sh --version screenspot_subtask
 # bash orby/scripts/eval_screenspot.sh --version screenspot_v2_subtask
 # bash orby/scripts/eval_screenspot.sh --version screenspot_pro_subtask
