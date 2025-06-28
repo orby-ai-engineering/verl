@@ -18,9 +18,9 @@ set -e
 # bash orby/scripts/eval_screenspot.sh --version screenspot_sft --model_size 72
 # bash orby/scripts/eval_screenspot.sh --version screenspot_v2_sft --model_size 72
 # bash orby/scripts/eval_screenspot.sh --version screenspot_pro_sft --model_size 72
-# bash orby/scripts/eval_screenspot.sh --version screenspot_subtask
-# bash orby/scripts/eval_screenspot.sh --version screenspot_v2_subtask
-# bash orby/scripts/eval_screenspot.sh --version screenspot_pro_subtask
+# bash orby/scripts/eval_screenspot.sh --version screenspot_subtask --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2_subtask --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro_subtask --model_size 72
 
 # Default values
 DATASET_VERSION="screenspot"
