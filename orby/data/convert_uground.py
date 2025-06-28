@@ -234,7 +234,7 @@ if __name__ == "__main__":
             data = {
                 "data_source": "uground",
                 "images": [image],
-                "ability": "vision",
+                "ability": "vision-grounding",
                 "reward_model": {
                     "style": "rule",
                     "ground_truth": ground_truth,
