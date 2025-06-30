@@ -40,10 +40,6 @@ while [[ $# -gt 0 ]]; do
             DATASET_VERSION="$2"
             shift 2
             ;;
-        --prompt_format)
-            PROMPT_FORMAT="$2"
-            shift 2
-            ;;
         --model_size)
             MODEL_SIZE="$2"
             shift 2
