@@ -103,6 +103,7 @@ case $DATASET_VERSION in
         ;;
 esac
 
+# TODO: BUG FIX: 72B model starts the generation but fails after couple of hours with a ray/vllm error.
 if [ $MODEL_SIZE -eq 72 ]; then
     TENSOR_MODEL_PARALLEL_SIZE=8
     BATCH_SIZE=1
