@@ -86,7 +86,7 @@ class SFTDataset(Dataset):
         self.response_dict_key = config.get("response_dict_keys", None)
         self.image_key = config.get("image_key", "images")
         self.video_key = config.get("video_key", "videos")
-        self.max_prompt_length = config.get("max_prompt_length", 5000)
+        self.max_prompt_length = config.get("max_prompt_length", 7000)
         self.return_raw_chat = config.get("return_raw_chat", False)
         self.return_full_prompt = config.get("return_full_prompt", False)
         self.truncation = config.get("truncation", "error")
@@ -115,32 +115,47 @@ class SFTDataset(Dataset):
             )
 
     def _read_files_and_tokenize(self):
-        dataframes = []
-        for parquet_file in self.data_files:
-            # read parquet files and cache
-            dataframe = datasets.load_dataset("parquet", data_files=parquet_file)[
-                "train"
-            ]
-            dataframes.append(dataframe)
-        self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
-
-        print(f"dataset len: {len(self.dataframe)}")
-
-        # filter out too long prompts
-        if self.filter_overlong_prompts:
-            tokenizer = self.tokenizer
-            prompt_key = self.prompt_key
-            self.dataframe = self.dataframe.filter(
-                lambda doc: len(
-                    tokenizer.apply_chat_template(
-                        doc[prompt_key], add_generation_prompt=True
+        all_dataframes = []
+        
+        for i, parquet_file in enumerate(self.data_files):
+            print(f"Loading and processing file {i+1}/{len(self.data_files)}: {parquet_file}")
+            
+            # Load one file at a time
+            dataframe = datasets.load_dataset("parquet", data_files=parquet_file)["train"]
+            print(f"File {i+1} original length: {len(dataframe)}")
+            
+            # Apply filtering immediately to this chunk before concatenation
+            if self.filter_overlong_prompts:
+                tokenizer = self.tokenizer
+                prompt_key = self.prompt_key
+                
+                dataframe = dataframe.filter(
+                    lambda doc: len(
+                        tokenizer.apply_chat_template(
+                            doc[prompt_key], add_generation_prompt=True
+                        )
                     )
+                    <= self.max_prompt_length,
+                    num_proc=1,  # Use single process to avoid memory issues
+                    desc=f"Filtering file {i+1} prompts longer than {self.max_prompt_length} tokens",
                 )
-                <= self.max_prompt_length,
-                num_proc=self.num_workers,
-                desc=f"Filtering prompts longer than {self.max_prompt_length} tokens",
-            )
-
+                
+                print(f"File {i+1} filtered length: {len(dataframe)}")
+            
+            all_dataframes.append(dataframe)
+            
+            # Optional: Force garbage collection after each file
+            import gc
+            gc.collect()
+        
+        # Now concatenate the pre-filtered, smaller datasets
+        print("Concatenating all processed files...")
+        self.dataframe = datasets.concatenate_datasets(all_dataframes)
+        print(f"Final concatenated dataset length: {len(self.dataframe)}")
+        
+        # Skip the main filtering step since we already did it per file
+        # But keep the print statement for consistency
+        if self.filter_overlong_prompts:
             print(f"filter dataset len: {len(self.dataframe)}")
 
     def resume_dataset_state(self):
@@ -162,12 +177,14 @@ class SFTDataset(Dataset):
     def _build_messages(self, example: dict):
         messages: list = example.pop(self.prompt_key)
         # SFT Training will always assume that the response_key is 'response' (which is different from verl which assumes that it is in the extra_info dict under the key 'answer')
-        if (self.response_key != "response") or (self.response_key not in example):
-            raise ValueError(f"response_key '{self.response_key}' is not set to 'response' or is not present in example. Available keys: {list(example.keys())}")
+        # if (self.response_key != "response") or (self.response_key not in example):
+        #     raise ValueError(f"response_key '{self.response_key}' is not set to 'response' or is not present in example. Available keys: {list(example.keys())}")
         
         response_messages = ""
 
-        response_messages = example[self.response_key]
+        # response_messages = example[self.response_key]
+
+        response_messages = example["extra_info"]["answer"]
         if response_messages:
             messages.extend(response_messages)
         else:
