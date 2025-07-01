@@ -81,7 +81,7 @@ command: |
         trainer.n_gpus_per_node=8 \
         data.path=$LOCAL_INPUT_PARQUET \
         data.prompt_key=prompt \
-        +data.response_key=prediction \
+        +data.response_key=predictions \
         data.batch_size=$BATCH_SIZE \
         +data.max_prompt_length=7680 \
         +data.filter_overlong_prompts=False \
@@ -102,7 +102,7 @@ command: |
     python3 -u -m orby.trainer.main_eval \
         data.path=$LOCAL_OUTPUT_PARQUET \
         data.prompt_key=prompt \
-        data.response_key=prediction \
+        data.response_key=predictions \
         +data.save_scores=True \
         custom_reward_function.path=$REWARD_FILE \
         custom_reward_function.name=$REWARD_FN \
