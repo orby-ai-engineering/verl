@@ -129,6 +129,7 @@ class SFTDataset(Dataset):
 
         # filter out too long prompts
         if self.filter_overlong_prompts:
+            print(f"Filtering prompts longer than {self.max_prompt_length} tokens")
             tokenizer = self.tokenizer
             prompt_key = self.prompt_key
             self.dataframe = self.dataframe.filter(
@@ -138,7 +139,6 @@ class SFTDataset(Dataset):
                     )
                 )
                 <= self.max_prompt_length,
-                desc=f"Filtering prompts longer than {self.max_prompt_length} tokens",
             )
 
     def resume_dataset_state(self):
