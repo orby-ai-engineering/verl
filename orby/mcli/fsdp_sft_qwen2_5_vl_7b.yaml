@@ -46,8 +46,8 @@ command: |
   
   # Dynamically list all parquet files in S3 directories
   echo "Discovering parquet files in S3..."
-  TRAIN_FILES=$(aws s3 ls s3://orby-osu-va/rishu_test/train/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/rishu_test/train/" $4}' | paste -sd ',' -)
-  VAL_FILES=$(aws s3 ls s3://orby-osu-va/rishu_test/test/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/rishu_test/test/" $4}' | paste -sd ',' -)
+  TRAIN_FILES=$(aws s3 ls s3://orby-osu-va/rishu_test/100k/train/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/rishu_test/100k/train/" $4}' | paste -sd ',' -)
+  VAL_FILES=$(aws s3 ls s3://orby-osu-va/rishu_test/100k/test/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/rishu_test/100k/test/" $4}' | paste -sd ',' -)
   
   echo "Found train files: $TRAIN_FILES"
   echo "Found val files: $VAL_FILES"
