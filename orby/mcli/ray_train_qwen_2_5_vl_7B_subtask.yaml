@@ -24,8 +24,10 @@ command: |
   export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask/$EXPERIMENT_NAME
 
   # Set training environment variables
-  export TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined.parquet
-  export VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/combined.parquet
+  export S3_TRAIN_FILES=s3://orby-osu-va/subtask/verl/experiment_2/generated/gen_experiment_1_sft_exp_1_n_samples_4_temperature_0.1_filtered_e_0.3-0.6_rm_0.2-0.7/part-00000-tid-6231000246394578642-f4556697-c9c5-4de4-985e-ab218d9275f9-19638-1-c000.snappy.parquet
+  export S3_VAL_FILES=s3://orby-osu-va/subtask/verl/experiment_2/generated/gen_experiment_0_sft_exp_1_n_samples_4_temperature_0.1_test_run_filtered_e_0.3-0.6_rm_0.2-0.7/part-00000-tid-4470145863514361083-cc44afb4-b2f4-4e05-a542-a5afe677b0c8-15527-1-c000.snappy.parquet
+  export LOCAL_TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train.parquet
+  export LOCAL_VAL_FILES=$HOME/data/subtask_direct_distill/mix/test.parquet
   export REWARD_FN=training_reward_func
   export REWARD_FILE=orby/reward/subtask.py
   export COORDINATES_METRIC="gaussian"
@@ -61,10 +63,8 @@ command: |
   pip3 install -e .[vllm]
 
   # Download merged datasets
-  mkdir -p ~/data/subtask_direct_distill/mix/train/
-  mkdir -p ~/data/subtask_direct_distill/mix/test/
-  aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined.parquet $VAL_FILES
-  aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_block512mb/part-00000-tid-3008114883591573361-eb7554a3-5626-4452-8b82-4ba9fa62e452-352-1-c000.snappy.parquet $TRAIN_FILES
+  aws s3 cp $S3_VAL_FILES $LOCAL_VAL_FILES
+  aws s3 cp $S3_TRAIN_FILES $LOCAL_TRAIN_FILES
 
   # Start ray cluster and wait for all nodes
   bash orby/scripts/run_ray.sh $NUM_NODES
@@ -82,8 +82,8 @@ command: |
             +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
             +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE \
             algorithm.adv_estimator=grpo \
-            data.train_files=$TRAIN_FILES \
-            data.val_files=$VAL_FILES \
+            data.train_files=$LOCAL_TRAIN_FILES \
+            data.val_files=$LOCAL_VAL_FILES \
             data.train_batch_size=$TRAIN_BATCH_SIZE \
             data.max_prompt_length=7680 \
             data.max_response_length=512 \
