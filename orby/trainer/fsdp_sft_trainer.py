@@ -1029,6 +1029,8 @@ def create_sft_dataset(data_paths, data_config, tokenizer, processor=None):
         return create_sft_multimodal_dataset(
             data_paths, data_config, tokenizer, processor
         )
+    else:
+        print("Creating single-modal dataset")
     """Create a dataset."""
     # build dataset
     # First check if a custom dataset class is specified
