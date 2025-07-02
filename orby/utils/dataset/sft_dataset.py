@@ -138,7 +138,6 @@ class SFTDataset(Dataset):
                     )
                 )
                 <= self.max_prompt_length,
-                num_proc=self.num_workers,
                 desc=f"Filtering prompts longer than {self.max_prompt_length} tokens",
             )
 
