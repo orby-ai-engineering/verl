@@ -102,9 +102,10 @@ class SFTDataset(Dataset):
         self.filter_prompts = config.get("filter_prompts", True)
         self.serialize_dataset = False
         self._download()
-        self._read_files_and_tokenize()
         print("CPU Count: ", os.cpu_count())
         print("num_workers: ", self.num_workers)
+        self._read_files_and_tokenize()
+
 
     def _download(self, use_origin_parquet=False):
         from verl.utils.fs import copy_to_local
