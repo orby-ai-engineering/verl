@@ -155,7 +155,10 @@ class SFTDataset(Dataset):
             )
 
     def __len__(self):
-        return len(self.dataframe)
+        if hasattr(self.dataframe, '__len__'):
+            return len(self.dataframe)
+        else:
+            raise NotImplementedError("streaming dataset length is not supported")
 
     def _build_messages(self, example: dict):
         messages: list = example.pop(self.prompt_key)
