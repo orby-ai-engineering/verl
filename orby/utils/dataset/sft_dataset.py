@@ -69,6 +69,7 @@ class SFTDataset(Dataset):
         config: DictConfig,
         processor: Optional[ProcessorMixin] = None,
     ):
+        print("Initializing SFTDataset")
         if not isinstance(data_files, (List, ListConfig)):
             data_files = [data_files]
 
@@ -115,6 +116,7 @@ class SFTDataset(Dataset):
             )
 
     def _read_files_and_tokenize(self):
+        print("Reading files and tokenizing")
         all_dataframes = []
         
         for i, parquet_file in enumerate(self.data_files):
