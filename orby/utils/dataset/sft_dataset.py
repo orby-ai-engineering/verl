@@ -116,49 +116,32 @@ class SFTDataset(Dataset):
             )
 
     def _read_files_and_tokenize(self):
-        print("Reading files and tokenizing")
-        all_dataframes = []
-        
-        for i, parquet_file in enumerate(self.data_files):
-            print(f"Loading and processing file {i+1}/{len(self.data_files)}: {parquet_file}")
-            
-            # Load one file at a time
-            dataframe = datasets.load_dataset("parquet", data_files=parquet_file)["train"]
-            print(f"File {i+1} original length: {len(dataframe)}")
-            
-            # Apply filtering immediately to this chunk before concatenation
-            if self.filter_overlong_prompts:
-                tokenizer = self.tokenizer
-                prompt_key = self.prompt_key
-                
-                dataframe = dataframe.filter(
-                    lambda doc: len(
-                        tokenizer.apply_chat_template(
-                            doc[prompt_key], add_generation_prompt=True
-                        )
-                    )
-                    <= self.max_prompt_length,
-                    num_proc=1,  # Use single process to avoid memory issues
-                    desc=f"Filtering file {i+1} prompts longer than {self.max_prompt_length} tokens",
-                )
-                
-                print(f"File {i+1} filtered length: {len(dataframe)}")
-            
-            all_dataframes.append(dataframe)
-            
-            # Optional: Force garbage collection after each file
-            import gc
-            gc.collect()
-        
-        # Now concatenate the pre-filtered, smaller datasets
-        print("Concatenating all processed files...")
-        self.dataframe = datasets.concatenate_datasets(all_dataframes)
-        print(f"Final concatenated dataset length: {len(self.dataframe)}")
-        
-        # Skip the main filtering step since we already did it per file
-        # But keep the print statement for consistency
+        def _read_files_and_tokenize(self):
+        dataframes = []
+        for parquet_file in self.data_files:
+            # read parquet files and cache
+            dataframe = datasets.load_dataset("parquet", data_files=parquet_file, streaming=True)[
+                "train"
+            ]
+            dataframes.append(dataframe)
+        self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
+
+        print(f"dataset len: {len(self.dataframe)}")
+
+        # filter out too long prompts
         if self.filter_overlong_prompts:
-            print(f"filter dataset len: {len(self.dataframe)}")
+            tokenizer = self.tokenizer
+            prompt_key = self.prompt_key
+            self.dataframe = self.dataframe.filter(
+                lambda doc: len(
+                    tokenizer.apply_chat_template(
+                        doc[prompt_key], add_generation_prompt=True
+                    )
+                )
+                <= self.max_prompt_length,
+                num_proc=self.num_workers,
+                desc=f"Filtering prompts longer than {self.max_prompt_length} tokens",
+            )
 
     def resume_dataset_state(self):
         self.serialize_dataset = not hasattr(self, "original_data_files")
