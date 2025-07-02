@@ -1,5 +1,5 @@
 MODEL_PATH=Qwen/Qwen2.5-VL-72B-Instruct
-DATA_PATH=~/data/subtask_direct_distill/mix/test/combined.parquet
+DATA_PATH=~/data/subtask_direct_distill/mix/test/combined_with_response.parquet
 REWARD_FILE=orby/reward/subtask.py
 REWARD_FN=eval_reward_func
 COORDINATES_METRIC="gaussian"

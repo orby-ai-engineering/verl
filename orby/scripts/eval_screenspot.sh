@@ -1,20 +1,37 @@
 set -e
 
-# How to run:
+## How to run:
 # bash orby/scripts/eval_screenspot.sh --version screenspot
 # bash orby/scripts/eval_screenspot.sh --version screenspot_v2
 # bash orby/scripts/eval_screenspot.sh --version screenspot_pro
 # bash orby/scripts/eval_screenspot.sh --version screenspot_sft
 # bash orby/scripts/eval_screenspot.sh --version screenspot_v2_sft
 # bash orby/scripts/eval_screenspot.sh --version screenspot_pro_sft
+# bash orby/scripts/eval_screenspot.sh --version screenspot_subtask
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2_subtask
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro_subtask
+
+## If you want to run 72B model, you need to run the following command:
+# bash orby/scripts/eval_screenspot.sh --version screenspot --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2 --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_sft --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2_sft --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro_sft --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_subtask --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_v2_subtask --model_size 72
+# bash orby/scripts/eval_screenspot.sh --version screenspot_pro_subtask --model_size 72
 
 # Default values
 DATASET_VERSION="screenspot"
 MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
+MODEL_SIZE=7
 REWARD_FILE=orby/reward/screenspot.py
 REWARD_FN=reward_func
 OUTPUT_FILE=result-test-output-1.parquet
 PROMPT_FORMAT="qwen"
+BATCH_SIZE=256
+TENSOR_MODEL_PARALLEL_SIZE=4
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -23,8 +40,8 @@ while [[ $# -gt 0 ]]; do
             DATASET_VERSION="$2"
             shift 2
             ;;
-        --prompt_format)
-            PROMPT_FORMAT="$2"
+        --model_size)
+            MODEL_SIZE="$2"
             shift 2
             ;;
         *)
@@ -48,6 +65,22 @@ case $DATASET_VERSION in
         DATA_PATH=~/data/screenspot_pro
         PARQUET_PATTERN="test.parquet"
         ;;
+    "screenspot_subtask")
+        DATA_PATH=~/data/screenspot_subtask
+        PARQUET_PATTERN="test.parquet"
+        PROMPT_FORMAT="subtask"
+        ;;
+    "screenspot_v2_subtask")
+        DATA_PATH=~/data/screenspot_v2_subtask
+        PARQUET_PATTERN="test.parquet"
+        PROMPT_FORMAT="subtask"
+        ;;
+    "screenspot_pro_subtask")
+        DATA_PATH=~/data/screenspot_pro_subtask
+        PARQUET_PATTERN="test.parquet"
+        PROMPT_FORMAT="subtask"
+        BATCH_SIZE=32
+        ;;
     "screenspot_sft")
         DATA_PATH=~/data/screenspot_sft
         PARQUET_PATTERN="test.parquet"
@@ -70,8 +103,16 @@ case $DATASET_VERSION in
         ;;
 esac
 
+# TODO: BUG FIX: 72B model starts the generation but fails after couple of hours with a ray/vllm error.
+if [ $MODEL_SIZE -eq 72 ]; then
+    TENSOR_MODEL_PARALLEL_SIZE=8
+    BATCH_SIZE=1
+fi
+
 echo "Using dataset version: $DATASET_VERSION"
 echo "Data path: $DATA_PATH"
+echo "Using Batch Size: $BATCH_SIZE"
+echo "Using Tensor Model Parallel Size: $TENSOR_MODEL_PARALLEL_SIZE"
 
 # Check if parquet files already exist
 if ls $DATA_PATH/$PARQUET_PATTERN 1> /dev/null 2>&1; then
@@ -107,6 +148,20 @@ else
             huggingface-cli download likaixin/ScreenSpot-Pro --repo-type dataset --local-dir="$DATA_PATH"
             python orby/data/convert_screenspot_pro.py --local_dir "$DATA_PATH" --image_dir="$DATA_PATH/images/" --annotations_dir="$DATA_PATH/annotations/" --prompt_format "$PROMPT_FORMAT"
             ;;
+        "screenspot_subtask")
+            python3 -m orby.data.convert_screenspot --local_dir $DATA_PATH --prompt_format $PROMPT_FORMAT
+            ;;
+        "screenspot_v2_subtask")
+            huggingface-cli download OS-Copilot/ScreenSpot-v2 --repo-type dataset --local-dir=$DATA_PATH
+            cd $DATA_PATH
+            unzip screenspotv2_image.zip
+            cd -
+            python orby/data/convert_screenspot_v2.py --local_dir $DATA_PATH --image_dir=$DATA_PATH/screenspotv2_image/ --prompt_format "$PROMPT_FORMAT"
+            ;;
+        "screenspot_pro_subtask")
+            huggingface-cli download likaixin/ScreenSpot-Pro --repo-type dataset --local-dir="$DATA_PATH"
+            python orby/data/convert_screenspot_pro.py --local_dir "$DATA_PATH" --image_dir="$DATA_PATH/images/" --annotations_dir="$DATA_PATH/annotations/" --prompt_format "$PROMPT_FORMAT"
+            ;;
     esac
 fi
 
@@ -117,7 +172,7 @@ python3 -m orby.trainer.main_generation \
     trainer.n_gpus_per_node=8 \
     data.path=$DATA_PATH/$PARQUET_PATTERN \
     data.prompt_key=prompt \
-    data.batch_size=256 \
+    data.batch_size=$BATCH_SIZE \
     +data.max_prompt_length=20000 \
     +data.image_key=images \
     data.n_samples=1 \
@@ -127,8 +182,8 @@ python3 -m orby.trainer.main_generation \
     rollout.top_p=1.0 \
     rollout.prompt_length=20000 \
     rollout.response_length=256 \
-    rollout.tensor_model_parallel_size=1 \
-    rollout.gpu_memory_utilization=0.9 \
+    rollout.tensor_model_parallel_size=$TENSOR_MODEL_PARALLEL_SIZE \
+    rollout.gpu_memory_utilization=0.7 \
     rollout.max_num_batched_tokens=65536
 
 # Evaluation
