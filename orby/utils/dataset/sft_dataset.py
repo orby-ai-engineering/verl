@@ -103,6 +103,8 @@ class SFTDataset(Dataset):
         self.serialize_dataset = False
         self._download()
         self._read_files_and_tokenize()
+        print("CPU Count: ", os.cpu_count())
+        print("num_workers: ", self.num_workers)
 
     def _download(self, use_origin_parquet=False):
         from verl.utils.fs import copy_to_local
@@ -119,17 +121,16 @@ class SFTDataset(Dataset):
         dataframes = []
         for parquet_file in self.data_files:
             # read parquet files and cache
-            dataframe = datasets.load_dataset("parquet", data_files=parquet_file, streaming=True)[
+            dataframe = datasets.load_dataset("parquet", data_files=parquet_file)[
                 "train"
             ]
             dataframes.append(dataframe)
         self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
 
-        # print(f"dataset len: {len(self.dataframe)}")
+        print(f"dataset len: {len(self.dataframe)}")
 
         # filter out too long prompts
         if self.filter_overlong_prompts:
-            print(f"Filtering prompts longer than {self.max_prompt_length} tokens")
             tokenizer = self.tokenizer
             prompt_key = self.prompt_key
             self.dataframe = self.dataframe.filter(
@@ -155,10 +156,8 @@ class SFTDataset(Dataset):
             )
 
     def __len__(self):
-        if hasattr(self.dataframe, '__len__'):
-            return len(self.dataframe)
-        else:
-            raise NotImplementedError("streaming dataset length is not supported")
+        return len(self.dataframe)
+
 
     def _build_messages(self, example: dict):
         messages: list = example.pop(self.prompt_key)
