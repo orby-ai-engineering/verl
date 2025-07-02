@@ -67,6 +67,7 @@ command: |
     data.prompt_key=prompt \
     data.response_key=response \
     +data.image_key=images \
+    +data.max_prompt_length=7000 \
     +processor.use_fast=true \
     +processor.trust_remote_code=true \
     optim.lr=1e-6 \
