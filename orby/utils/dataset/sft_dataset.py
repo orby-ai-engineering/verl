@@ -97,6 +97,7 @@ class SFTDataset(Dataset):
             "filter_overlong_prompts_workers", max(1, os.cpu_count() // 4)
         )
         self.num_workers = min(self.num_workers, os.cpu_count())
+        self.num_workers = 1
         self.chat_template_func = config.get("chat_template_func", None)
         self.need_tools_kwargs = config.get("need_tools_kwargs", False)
         self.filter_prompts = config.get("filter_prompts", True)
@@ -141,7 +142,11 @@ class SFTDataset(Dataset):
                     )
                 )
                 <= self.max_prompt_length,
+                num_proc=self.num_workers,
+                desc=f"Filtering prompts longer than {self.max_prompt_length} tokens",
             )
+            
+            print(f"filter dataset len: {len(self.dataframe)}")
 
     def resume_dataset_state(self):
         self.serialize_dataset = not hasattr(self, "original_data_files")
