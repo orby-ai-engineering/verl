@@ -116,7 +116,6 @@ class SFTDataset(Dataset):
             )
 
     def _read_files_and_tokenize(self):
-        def _read_files_and_tokenize(self):
         dataframes = []
         for parquet_file in self.data_files:
             # read parquet files and cache
