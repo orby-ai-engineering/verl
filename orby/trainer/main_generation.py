@@ -48,11 +48,11 @@ from verl.utils.dataset.rl_dataset import collate_fn as default_collate_fn
 from verl.trainer.main_ppo import create_rl_dataset
 
 
-def _create_dataloader(config, tokenizer, processor):
+def _create_dataloader(path, config, tokenizer, processor):
     """
     Creates the dataloader.
     """
-    dataset = create_rl_dataset(config.data.path, config.data, tokenizer, processor)
+    dataset = create_rl_dataset(path, config.data, tokenizer, processor)
     dataloader = DataLoader(
         dataset=dataset,
         batch_size=config.data.batch_size,
@@ -101,84 +101,97 @@ def main_task(config):
         local_path, use_fast=True
     )  # used for multimodal LLM, could be none
 
-    dataset = _create_dataloader(config, tokenizer, processor)
-
-    if config.rollout.temperature == 0.0:
-        assert config.data.n_samples == 1, "When temperature=0, n_samples must be 1."
-    assert config.data.n_samples >= 1, "n_samples should always >= 1"
-
-    ray_cls_with_init = RayClassWithInitArgs(
-        cls=ray.remote(ActorRolloutRefWorker), config=config, role="rollout"
+    paths = (
+        config.data.path if isinstance(config.data.path, list) else [config.data.path]
     )
-    resource_pool = RayResourcePool(
-        process_on_nodes=[config.trainer.n_gpus_per_node] * config.trainer.nnodes
+    output_paths = (
+        config.data.output_path
+        if isinstance(config.data.output_path, list)
+        else [config.data.output_path]
     )
-    wg = RayWorkerGroup(
-        resource_pool=resource_pool, ray_cls_with_init=ray_cls_with_init
-    )
-    wg.init_model()
 
-    output_lst = [[] for _ in range(config.data.n_samples)]
+    for path, output_path in zip(paths, output_paths):
+        print(f"Processing {path}...")
+        dataset = _create_dataloader(path, config, tokenizer, processor)
 
-    batch_idx = 0
-    for batch_dict in dataset:
-        print(f"[{batch_idx + 1}] Start to process.")
-        data = DataProto.from_single_dict(batch_dict)
+        if config.rollout.temperature == 0.0:
+            assert (
+                config.data.n_samples == 1
+            ), "When temperature=0, n_samples must be 1."
+        assert config.data.n_samples >= 1, "n_samples should always >= 1"
 
-        batch_keys_to_pop = ["input_ids", "attention_mask", "position_ids"]
-        non_tensor_batch_keys_to_pop = ["raw_prompt_ids"]
-        if "multi_modal_inputs" in data.non_tensor_batch:
-            non_tensor_batch_keys_to_pop.extend(
-                ["multi_modal_data", "multi_modal_inputs"]
-            )
-        if "raw_prompt" in data.non_tensor_batch:
-            non_tensor_batch_keys_to_pop.append("raw_prompt")
-        if "tools_kwargs" in data.non_tensor_batch:
-            non_tensor_batch_keys_to_pop.append("tools_kwargs")
-        data = data.pop(
-            batch_keys=batch_keys_to_pop,
-            non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
+        ray_cls_with_init = RayClassWithInitArgs(
+            cls=ray.remote(ActorRolloutRefWorker), config=config, role="rollout"
         )
+        resource_pool = RayResourcePool(
+            process_on_nodes=[config.trainer.n_gpus_per_node] * config.trainer.nnodes
+        )
+        wg = RayWorkerGroup(
+            resource_pool=resource_pool, ray_cls_with_init=ray_cls_with_init
+        )
+        wg.init_model()
 
-        data_padded, pad_size = pad_dataproto_to_divisor(data, wg.world_size)
+        output_lst = [[] for _ in range(config.data.n_samples)]
 
-        # START TO GENERATE FOR n_samples TIMES
-        print(f"[{batch_idx + 1}] Start to generate.")
-        for n_sample in range(config.data.n_samples):
-            output_padded = wg.generate_sequences(data_padded)
-            output = unpad_dataproto(output_padded, pad_size=pad_size)
+        batch_idx = 0
+        for batch_dict in dataset:
+            print(f"[{batch_idx + 1}] Start to process.")
+            data = DataProto.from_single_dict(batch_dict)
 
-            output_texts = []
-            for i in range(len(output)):
-                data_item = output[i]
-                prompt_length = data_item.batch["prompts"].shape[-1]
-                valid_response_length = data_item.batch["attention_mask"][
-                    prompt_length:
-                ].sum()
-                valid_response_ids = data_item.batch["responses"][
-                    :valid_response_length
-                ]
-                response_str = tokenizer.decode(
-                    valid_response_ids, skip_special_tokens=True
+            batch_keys_to_pop = ["input_ids", "attention_mask", "position_ids"]
+            non_tensor_batch_keys_to_pop = ["raw_prompt_ids"]
+            if "multi_modal_inputs" in data.non_tensor_batch:
+                non_tensor_batch_keys_to_pop.extend(
+                    ["multi_modal_data", "multi_modal_inputs"]
                 )
-                output_texts.append(response_str)
+            if "raw_prompt" in data.non_tensor_batch:
+                non_tensor_batch_keys_to_pop.append("raw_prompt")
+            if "tools_kwargs" in data.non_tensor_batch:
+                non_tensor_batch_keys_to_pop.append("tools_kwargs")
+            data = data.pop(
+                batch_keys=batch_keys_to_pop,
+                non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
+            )
 
-            output_lst[n_sample].extend(output_texts)
-        batch_idx += 1
+            data_padded, pad_size = pad_dataproto_to_divisor(data, wg.world_size)
 
-    # convert output_lst from (n_samples, n_data) to (n_data, n_sampels)
-    output_lst = np.array(output_lst, dtype=object)
-    output_lst = np.transpose(output_lst, axes=(1, 0)).tolist()
+            # START TO GENERATE FOR n_samples TIMES
+            print(f"[{batch_idx + 1}] Start to generate.")
+            for n_sample in range(config.data.n_samples):
+                output_padded = wg.generate_sequences(data_padded)
+                output = unpad_dataproto(output_padded, pad_size=pad_size)
 
-    # add to the data frame
-    dataset = pd.read_parquet(config.data.path)
-    dataset["responses"] = output_lst
+                output_texts = []
+                for i in range(len(output)):
+                    data_item = output[i]
+                    prompt_length = data_item.batch["prompts"].shape[-1]
+                    valid_response_length = data_item.batch["attention_mask"][
+                        prompt_length:
+                    ].sum()
+                    valid_response_ids = data_item.batch["responses"][
+                        :valid_response_length
+                    ]
+                    response_str = tokenizer.decode(
+                        valid_response_ids, skip_special_tokens=True
+                    )
+                    output_texts.append(response_str)
 
-    # write to a new parquet
-    output_dir = os.path.dirname(config.data.output_path)
-    if output_dir != "":
-        makedirs(output_dir, exist_ok=True)
-    dataset.to_parquet(config.data.output_path)
+                output_lst[n_sample].extend(output_texts)
+            batch_idx += 1
+
+        # convert output_lst from (n_samples, n_data) to (n_data, n_sampels)
+        output_lst = np.array(output_lst, dtype=object)
+        output_lst = np.transpose(output_lst, axes=(1, 0)).tolist()
+
+        # add to the data frame
+        dataset = pd.read_parquet(path)
+        dataset["responses"] = output_lst
+
+        # write to a new parquet
+        output_dir = os.path.dirname(output_path)
+        if output_dir != "":
+            makedirs(output_dir, exist_ok=True)
+        dataset.to_parquet(output_path)
 
 
 if __name__ == "__main__":
