@@ -143,7 +143,7 @@ class SFTDataset(Dataset):
                 num_proc=self.num_workers,
                 desc=f"Filtering prompts longer than {self.max_prompt_length} tokens",
             )
- 
+
             print(f"filter dataset len: {len(self.dataframe)}")
 
     def resume_dataset_state(self):
