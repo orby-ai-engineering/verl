@@ -56,7 +56,7 @@ command: |
   export CUDA_LAUNCH_BLOCKING=1
 
 
-  if [ -n "$MODEL_PATH" ]; then
+  if [ -n "$BASE_MODEL_PATH" ]; then
     aws s3 cp --recursive $BASE_MODEL_PATH $MODEL_NAME
   else
     # Download model from Huggingface Hub
