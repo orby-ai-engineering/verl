@@ -63,7 +63,7 @@ command: |
   pip3 install -e .[vllm]
 
   # Download model
-  aws s3 cp $S3_MODEL_CHECKPOINT $LOCAL_MODEL_CHECKPOINT --recursive
+  aws s3 cp $S3_MODEL_CHECKPOINT $LOCAL_MODEL_CHECKPOINT --recursive --no-progress
 
   # Start ray cluster and wait for all nodes
   bash orby/scripts/run_ray.sh $NUM_NODES
@@ -71,7 +71,7 @@ command: |
   ray status
   if [ "$NODE_RANK" = "0" ]; then
     # Download merged datasets
-    aws s3 cp $S3_INPUT_PARQUET $LOCAL_INPUT_PARQUET
+    aws s3 cp $S3_INPUT_PARQUET $LOCAL_INPUT_PARQUET --no-progress
 
     # Split the dataset into 10 files
     python3 orby/data/split_parquet.py --input_file $LOCAL_INPUT_PARQUET --output_dir $LOCAL_INPUT_PARQUET_DIR --num_splits 16
