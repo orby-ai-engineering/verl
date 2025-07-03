@@ -53,7 +53,6 @@ def _create_dataloader(config, tokenizer, processor):
     Creates the dataloader.
     """
     dataset = create_rl_dataset(config.data.path, config.data, tokenizer, processor)
-
     dataloader = DataLoader(
         dataset=dataset,
         batch_size=config.data.batch_size,
@@ -64,9 +63,7 @@ def _create_dataloader(config, tokenizer, processor):
     )
 
     assert len(dataloader) >= 1, "Dataloader is empty!"
-
     print(f"Size of dataloader: {len(dataloader)}")
-
     return dataloader
 
 
