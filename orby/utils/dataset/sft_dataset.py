@@ -69,7 +69,6 @@ class SFTDataset(Dataset):
         config: DictConfig,
         processor: Optional[ProcessorMixin] = None,
     ):
-        print("Initializing SFTDataset")
         if not isinstance(data_files, (List, ListConfig)):
             data_files = [data_files]
 
@@ -97,16 +96,15 @@ class SFTDataset(Dataset):
             "filter_overlong_prompts_workers", max(1, os.cpu_count() // 4)
         )
         self.num_workers = min(self.num_workers, os.cpu_count())
-        self.num_workers = 24
+        # Override num_workers if override_num_workers specified in config
+        if "override_num_workers" in config:
+            self.num_workers = config.override_num_workers
         self.chat_template_func = config.get("chat_template_func", None)
         self.need_tools_kwargs = config.get("need_tools_kwargs", False)
         self.filter_prompts = config.get("filter_prompts", True)
         self.serialize_dataset = False
         self._download()
-        print("CPU Count: ", os.cpu_count())
-        print("num_workers: ", self.num_workers)
         self._read_files_and_tokenize()
-
 
     def _download(self, use_origin_parquet=False):
         from verl.utils.fs import copy_to_local
@@ -145,7 +143,7 @@ class SFTDataset(Dataset):
                 num_proc=self.num_workers,
                 desc=f"Filtering prompts longer than {self.max_prompt_length} tokens",
             )
-            
+ 
             print(f"filter dataset len: {len(self.dataframe)}")
 
     def resume_dataset_state(self):
@@ -164,7 +162,6 @@ class SFTDataset(Dataset):
     def __len__(self):
         return len(self.dataframe)
 
-
     def _build_messages(self, example: dict):
         messages: list = example.pop(self.prompt_key)
         # SFT Training will always assume that the response_key is 'response' (which is different from verl which assumes that it is in the extra_info dict under the key 'answer')
@@ -174,7 +171,6 @@ class SFTDataset(Dataset):
         response_messages = ""
 
         response_messages = example[self.response_key]
-
         if response_messages:
             messages.extend(response_messages)
         else:

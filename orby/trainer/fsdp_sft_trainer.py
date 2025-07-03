@@ -1025,12 +1025,9 @@ def create_sft_dataset(data_paths, data_config, tokenizer, processor=None):
 
     # if multi-modal dataset, use the modified RLHF dataset from VERL for SFT that has support for multi-modal inputs
     if data_config.get("image_key", None) is not None:
-        print("Creating multi-modal dataset")
         return create_sft_multimodal_dataset(
             data_paths, data_config, tokenizer, processor
         )
-    else:
-        print("Creating single-modal dataset")
     """Create a dataset."""
     # build dataset
     # First check if a custom dataset class is specified

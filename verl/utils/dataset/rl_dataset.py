@@ -67,7 +67,6 @@ class RLHFDataset(Dataset):
         config: DictConfig,
         processor: Optional[ProcessorMixin] = None,
     ):
-        print("Initializing RLHFDataset")
         if not isinstance(data_files, (List, ListConfig)):
             data_files = [data_files]
 
