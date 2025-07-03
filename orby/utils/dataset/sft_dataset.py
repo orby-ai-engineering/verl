@@ -87,7 +87,7 @@ class SFTDataset(Dataset):
         self.response_dict_key = config.get("response_dict_keys", None)
         self.image_key = config.get("image_key", "images")
         self.video_key = config.get("video_key", "videos")
-        self.max_prompt_length = config.get("max_prompt_length", 7000)
+        self.max_prompt_length = config.get("max_prompt_length", 7100)
         self.return_raw_chat = config.get("return_raw_chat", False)
         self.return_full_prompt = config.get("return_full_prompt", False)
         self.truncation = config.get("truncation", "error")
