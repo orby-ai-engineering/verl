@@ -27,9 +27,9 @@ command: |
   export TEMPERATURE=0.1
   export BATCH_SIZE=2208
   export LOCAL_MODEL_CHECKPOINT=$HOME/model_checkpoint
-  export LOCAL_INPUT_PARQUET_DIR=$HOME/data/
+  export LOCAL_INPUT_PARQUET_DIR=$HOME/data
   export LOCAL_INPUT_PARQUET=$LOCAL_INPUT_PARQUET_DIR/input.parquet
-  export LOCAL_OUTPUT_PARQUET_DIR=$HOME/generated_dataset/
+  export LOCAL_OUTPUT_PARQUET_DIR=$HOME/generated_dataset
   export LOCAL_OUTPUT_PARQUET=$LOCAL_OUTPUT_PARQUET_DIR/output.parquet
   export REWARD_FN=training_reward_func
   export REWARD_FILE=orby/reward/subtask.py
@@ -87,6 +87,8 @@ command: |
       INPUT_PARQUET_FILES+=($LOCAL_INPUT_PARQUET_DIR/split_00${i}.parquet)
       OUTPUT_PARQUET_FILES+=($LOCAL_OUTPUT_PARQUET_DIR/split_00${i}.parquet)
     done
+    INPUT_PARQUET_FILES=$(IFS=,; echo "${INPUT_PARQUET_FILES[*]}")
+    OUTPUT_PARQUET_FILES=$(IFS=,; echo "${OUTPUT_PARQUET_FILES[*]}")
 
     ray job submit --address="http://127.0.0.1:8265" \
       --runtime-env=verl/trainer/runtime_env.yaml \
@@ -95,14 +97,14 @@ command: |
       python3 -u -m orby.trainer.main_generation \
         trainer.nnodes=$NUM_NODES \
         trainer.n_gpus_per_node=8 \
-        data.path=${INPUT_PARQUET_FILES[@]} \
+        data.path="${INPUT_PARQUET_FILES[@]}" \
         data.prompt_key=prompt \
         +data.response_key=predictions \
         data.batch_size=$BATCH_SIZE \
         +data.max_prompt_length=7680 \
         +data.filter_overlong_prompts=False \
         data.n_samples=$N_SAMPLES \
-        data.output_path=${OUTPUT_PARQUET_FILES[@]} \
+        data.output_path="${OUTPUT_PARQUET_FILES[@]}" \
         +data.dataloader_num_workers=1 \
         model.path=$LOCAL_MODEL_CHECKPOINT \
         rollout.temperature=$TEMPERATURE \
@@ -116,7 +118,7 @@ command: |
     ray stop
 
     # Merge the datasets
-    python3 orby/data/merge_parquet.py --input_dir $LOCAL_OUTPUT_PARQUET_DIR --input_pattern "split_00*.parquet" --output_file $LOCAL_OUTPUT_PARQUET
+    python3 orby/data/merge_parquet.py --input_dir $LOCAL_OUTPUT_PARQUET_DIR --pattern "split_00*.parquet" --output_file $LOCAL_OUTPUT_PARQUET
 
     # Evaluation
     python3 -u -m orby.trainer.main_eval \

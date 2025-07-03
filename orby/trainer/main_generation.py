@@ -101,14 +101,12 @@ def main_task(config):
         local_path, use_fast=True
     )  # used for multimodal LLM, could be none
 
-    paths = (
-        config.data.path if isinstance(config.data.path, list) else [config.data.path]
-    )
-    output_paths = (
-        config.data.output_path
-        if isinstance(config.data.output_path, list)
-        else [config.data.output_path]
-    )
+    paths = config.data.path.split(",")
+    output_paths = config.data.output_path.split(",")
+
+    assert len(paths) == len(
+        output_paths
+    ), "Number of paths and output paths must be the same"
 
     for path, output_path in zip(paths, output_paths):
         print(f"Processing {path}...")
