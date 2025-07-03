@@ -30,6 +30,7 @@ from pprint import pprint
 import pandas as pd
 from omegaconf import OmegaConf
 from torchdata.stateful_dataloader import StatefulDataLoader
+from torch.utils.data import DataLoader
 
 from verl import DataProto
 from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
@@ -52,9 +53,8 @@ def _create_dataloader(config, tokenizer, processor):
     Creates the dataloader.
     """
     dataset = create_rl_dataset(config.data.path, config.data, tokenizer, processor)
-    # return dataset
 
-    dataloader = StatefulDataLoader(
+    dataloader = DataLoader(
         dataset=dataset,
         batch_size=config.data.batch_size,
         num_workers=config.data.get("dataloader_num_workers", 8),
