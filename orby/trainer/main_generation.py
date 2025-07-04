@@ -87,7 +87,7 @@ def run_generation(config) -> None:
     ray.get(main_task.remote(config))
 
 
-@ray.remote(num_cpus=1)
+@ray.remote(num_cpus=64)
 def main_task(config):
     pprint(
         OmegaConf.to_container(config, resolve=True)
