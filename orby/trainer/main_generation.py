@@ -161,13 +161,15 @@ def main_task(config):
                 output_texts = []
                 for i in range(len(output)):
                     data_item = output[i]
-                    prompt_length = data_item.batch["prompts"].shape[-1]
-                    valid_response_length = data_item.batch["attention_mask"][
-                        prompt_length:
-                    ].sum()
-                    valid_response_ids = data_item.batch["responses"][
-                        :valid_response_length
-                    ]
+                    # prompt_length = data_item.batch["prompts"].shape[-1]
+                    # valid_response_length = data_item.batch["attention_mask"][
+                    #     prompt_length:
+                    # ].sum()
+                    # valid_response_ids = data_item.batch["responses"][
+                    #     :valid_response_length
+                    # ]
+                    assert len(data_item.batch) == 1, "Only one response is expected"
+                    valid_response_ids = data_item.batch["responses"]
                     response_str = tokenizer.decode(
                         valid_response_ids, skip_special_tokens=True
                     )
