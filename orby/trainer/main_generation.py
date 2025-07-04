@@ -108,6 +108,17 @@ def main_task(config):
         output_paths
     ), "Number of paths and output paths must be the same"
 
+    ray_cls_with_init = RayClassWithInitArgs(
+        cls=ray.remote(ActorRolloutRefWorker), config=config, role="rollout"
+    )
+    resource_pool = RayResourcePool(
+        process_on_nodes=[config.trainer.n_gpus_per_node] * config.trainer.nnodes
+    )
+    wg = RayWorkerGroup(
+        resource_pool=resource_pool, ray_cls_with_init=ray_cls_with_init
+    )
+    wg.init_model()
+
     for path, output_path in zip(paths, output_paths):
         print(f"Processing {path}...")
         dataset = _create_dataloader(path, config, tokenizer, processor)
@@ -118,19 +129,7 @@ def main_task(config):
             ), "When temperature=0, n_samples must be 1."
         assert config.data.n_samples >= 1, "n_samples should always >= 1"
 
-        ray_cls_with_init = RayClassWithInitArgs(
-            cls=ray.remote(ActorRolloutRefWorker), config=config, role="rollout"
-        )
-        resource_pool = RayResourcePool(
-            process_on_nodes=[config.trainer.n_gpus_per_node] * config.trainer.nnodes
-        )
-        wg = RayWorkerGroup(
-            resource_pool=resource_pool, ray_cls_with_init=ray_cls_with_init
-        )
-        wg.init_model()
-
         output_lst = [[] for _ in range(config.data.n_samples)]
-
         batch_idx = 0
         for batch_dict in dataset:
             print(f"[{batch_idx + 1}] Start to process.")
