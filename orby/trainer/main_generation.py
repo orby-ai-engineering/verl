@@ -169,7 +169,6 @@ def main_task(config):
                     #     :valid_response_length
                     # ]
                     # assert len(data_item.batch) == 1, "Only one response is expected"
-                    print(list(data_item.batch.keys()))
                     valid_response_ids = data_item.batch["responses"]
                     response_str = tokenizer.decode(
                         valid_response_ids, skip_special_tokens=True
