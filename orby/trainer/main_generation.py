@@ -190,7 +190,7 @@ def main_task(config):
         output_dir = os.path.dirname(output_path)
         if output_dir != "":
             makedirs(output_dir, exist_ok=True)
-        dataset.to_parquet(output_path)
+        dataset.to_parquet(output_path, row_group_size=512)
 
 
 if __name__ == "__main__":
