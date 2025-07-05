@@ -98,7 +98,7 @@ def main_task(config):
     trust_remote_code = config.data.get("trust_remote_code", False)
     tokenizer = hf_tokenizer(local_path, trust_remote_code=trust_remote_code)
     processor = hf_processor(
-        local_path, use_fast=True
+        local_path, use_fast=True,
     )  # used for multimodal LLM, could be none
 
     paths = config.data.path.split(",")
@@ -129,9 +129,8 @@ def main_task(config):
             ), "When temperature=0, n_samples must be 1."
         assert config.data.n_samples >= 1, "n_samples should always >= 1"
 
-        output_lst = [[] for _ in range(config.data.n_samples)]
-        batch_idx = 0
-        for batch_dict in dataset:
+        output_lst = []
+        for batch_idx, batch_dict in enumerate(dataset):
             print(f"[{batch_idx + 1}] Start to process.")
             data = DataProto.from_single_dict(batch_dict)
 
@@ -154,33 +153,28 @@ def main_task(config):
 
             # START TO GENERATE FOR n_samples TIMES
             print(f"[{batch_idx + 1}] Start to generate.")
-            for n_sample in range(config.data.n_samples):
-                output_padded = wg.generate_sequences(data_padded)
-                output = unpad_dataproto(output_padded, pad_size=pad_size)
+            output_padded = wg.generate_sequences(data_padded, n=config.data.n_samples)
+            output_padded.batch = output_padded.batch.reshape((-1, config.data.n_samples))
+            # Only keep the first batch size dim.
+            output_padded.batch.batch_size = output_padded.batch.batch_size[:1]
+            output = unpad_dataproto(output_padded, pad_size=pad_size)
 
-                output_texts = []
-                for i in range(len(output)):
-                    data_item = output[i]
-                    # prompt_length = data_item.batch["prompts"].shape[-1]
-                    # valid_response_length = data_item.batch["attention_mask"][
-                    #     prompt_length:
-                    # ].sum()
-                    # valid_response_ids = data_item.batch["responses"][
-                    #     :valid_response_length
-                    # ]
-                    # assert len(data_item.batch) == 1, "Only one response is expected"
-                    valid_response_ids = data_item.batch["responses"]
-                    response_str = tokenizer.decode(
-                        valid_response_ids, skip_special_tokens=True
-                    )
-                    output_texts.append(response_str)
+            output_texts = []
+            for i, data_item in enumerate(output):
+                prompt_length = data_item.batch["prompts"].shape[-1]
+                valid_response_length = data_item.batch["attention_mask"][
+                     :, prompt_length:
+                ].sum(axis=-1)
+                responses = data_item.batch["responses"]
+                responses = [r[:l] for r, l in zip(responses, valid_response_length)]
+                response_str = tokenizer.batch_decode(
+                    responses, skip_special_tokens=True
+                )
+                output_texts.append([response_str])
+            output_lst.append(np.concatenate(output_texts))
 
-                output_lst[n_sample].extend(output_texts)
-            batch_idx += 1
-
-        # convert output_lst from (n_samples, n_data) to (n_data, n_sampels)
-        output_lst = np.array(output_lst, dtype=object)
-        output_lst = np.transpose(output_lst, axes=(1, 0)).tolist()
+        # output_lst shape: (n_data, n_sampels)
+        output_lst = np.concatenate(output_lst)
 
         # add to the data frame
         dataset = pd.read_parquet(path)
@@ -190,7 +184,7 @@ def main_task(config):
         output_dir = os.path.dirname(output_path)
         if output_dir != "":
             makedirs(output_dir, exist_ok=True)
-        dataset.to_parquet(output_path)
+        dataset.to_parquet(output_path, row_group_size=512)
 
 
 if __name__ == "__main__":
