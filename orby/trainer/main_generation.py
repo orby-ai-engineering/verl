@@ -153,7 +153,7 @@ def main_task(config):
 
             # START TO GENERATE FOR n_samples TIMES
             print(f"[{batch_idx + 1}] Start to generate.")
-            output_padded = wg.generate_sequences(data_padded, n=config.data.n_samples)
+            output_padded = wg.generate_sequences(data_padded)
             output_padded.batch = output_padded.batch.reshape((-1, config.data.n_samples))
             # Only keep the first batch size dim.
             output_padded.batch.batch_size = output_padded.batch.batch_size[:1]
