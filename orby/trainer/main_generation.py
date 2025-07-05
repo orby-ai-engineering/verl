@@ -157,6 +157,8 @@ def main_task(config):
             output_padded.batch = output_padded.batch.reshape((-1, config.data.n_samples))
             # Only keep the first batch size dim.
             output_padded.batch.batch_size = output_padded.batch.batch_size[:1]
+            # Delete non-tensor batch to avoid unpad error as it is not reshaped for n_samples.
+            del output_padded.non_tensor_batch
             output = unpad_dataproto(output_padded, pad_size=pad_size)
 
             output_texts = []
