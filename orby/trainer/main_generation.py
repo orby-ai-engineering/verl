@@ -177,6 +177,8 @@ def main_task(config):
 
         # output_lst shape: (n_data, n_sampels)
         output_lst = np.concatenate(output_lst)
+        # need 1d array to insert a new column
+        output_lst = [list(o) for o in output_lst]
 
         # add to the data frame
         dataset = pd.read_parquet(path)
