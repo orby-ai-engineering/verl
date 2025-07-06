@@ -98,7 +98,8 @@ def main_task(config):
     trust_remote_code = config.data.get("trust_remote_code", False)
     tokenizer = hf_tokenizer(local_path, trust_remote_code=trust_remote_code)
     processor = hf_processor(
-        local_path, use_fast=True,
+        local_path,
+        use_fast=True,
     )  # used for multimodal LLM, could be none
 
     paths = config.data.path.split(",")
@@ -124,10 +125,8 @@ def main_task(config):
         dataset = _create_dataloader(path, config, tokenizer, processor)
 
         if config.rollout.temperature == 0.0:
-            assert (
-                config.data.n_samples == 1
-            ), "When temperature=0, n_samples must be 1."
-        assert config.data.n_samples >= 1, "n_samples should always >= 1"
+            assert config.rollout.n == 1, "When temperature=0, rollout.n must be 1."
+        assert config.rollout.n >= 1, "rollout.n should always >= 1"
 
         output_lst = []
         for batch_idx, batch_dict in enumerate(dataset):
@@ -151,13 +150,12 @@ def main_task(config):
 
             data_padded, pad_size = pad_dataproto_to_divisor(data, wg.world_size)
 
-            # START TO GENERATE FOR n_samples TIMES
             print(f"[{batch_idx + 1}] Start to generate.")
             output_padded = wg.generate_sequences(data_padded)
-            output_padded.batch = output_padded.batch.reshape((-1, config.data.n_samples))
+            output_padded.batch = output_padded.batch.reshape((-1, config.rollout.n))
             # Only keep the first batch size dim.
             output_padded.batch.batch_size = output_padded.batch.batch_size[:1]
-            # Delete non-tensor batch to avoid unpad error as it is not reshaped for n_samples.
+            # Delete non-tensor batch to avoid unpad error as it is not reshaped for rollout.n.
             output_padded.non_tensor_batch.clear()
             output = unpad_dataproto(output_padded, pad_size=pad_size)
 
@@ -165,7 +163,7 @@ def main_task(config):
             for i, data_item in enumerate(output):
                 prompt_length = data_item.batch["prompts"].shape[-1]
                 valid_response_length = data_item.batch["attention_mask"][
-                     :, prompt_length:
+                    :, prompt_length:
                 ].sum(axis=-1)
                 responses = data_item.batch["responses"]
                 responses = [r[:l] for r, l in zip(responses, valid_response_length)]
@@ -175,7 +173,7 @@ def main_task(config):
                 output_texts.append([response_str])
             output_lst.append(np.concatenate(output_texts))
 
-        # output_lst shape: (n_data, n_sampels)
+        # output_lst shape: (n_data, rollout.n)
         output_lst = np.concatenate(output_lst)
         # need 1d array to insert a new column
         output_lst = [list(o) for o in output_lst]

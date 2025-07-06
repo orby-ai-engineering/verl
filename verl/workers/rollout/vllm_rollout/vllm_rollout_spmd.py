@@ -340,7 +340,9 @@ class vLLMRollout(BaseRollout):
         ):
             self.inference_engine.free_cache_engine()
 
-        return DataProto(batch=batch)#, non_tensor_batch=non_tensor_batch)
+        # Orby change: do not return non_tensor_batch which contains large pixels.
+        # return DataProto(batch=batch, non_tensor_batch=non_tensor_batch)
+        return DataProto(batch=batch)
 
 
 class vLLMAsyncRollout:

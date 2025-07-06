@@ -73,7 +73,8 @@ command: |
     # Download merged datasets
     aws s3 cp $S3_INPUT_PARQUET $LOCAL_INPUT_PARQUET --no-progress
 
-    # Split the dataset into 10 files
+    # Split the dataset into multiple files
+    # ~4000 rows per file is ideal for CPU memory
     python3 orby/data/split_parquet.py --input_file $LOCAL_INPUT_PARQUET --output_dir $LOCAL_INPUT_PARQUET_DIR --num_splits 16
 
     # Generate dataset for each file
@@ -103,7 +104,6 @@ command: |
         data.batch_size=$BATCH_SIZE \
         +data.max_prompt_length=7680 \
         +data.filter_overlong_prompts=False \
-        data.n_samples=$N_SAMPLES \
         data.output_path="\\'${OUTPUT_PARQUET_FILES}\\'" \
         +data.dataloader_num_workers=1 \
         model.path=$LOCAL_MODEL_CHECKPOINT \
@@ -114,6 +114,7 @@ command: |
         rollout.tensor_model_parallel_size=1 \
         rollout.gpu_memory_utilization=0.9 \
         rollout.max_num_batched_tokens=65536 \
+        +rollout.n=$N_SAMPLES \
         +rollout.limit_images=3 $@ | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
     ray stop
 
