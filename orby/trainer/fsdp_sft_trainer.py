@@ -1001,6 +1001,11 @@ def main(config):
         local_model_path, trust_remote_code=config.model.trust_remote_code
     )
     processor = hf_processor(local_model_path, **config.get("processor", {}))
+    if rank == 0:
+        print("Processor parameters:")
+        for name, param in processor.__dict__.items():
+            if not name.startswith('_'):
+                print(f"  {name}: {param}")
     train_dataset = create_sft_dataset(
         config.data.train_files, config.data, tokenizer, processor
     )

@@ -56,7 +56,7 @@ def get_resized_wh(image):
         factor=PROCESSOR.image_processor.patch_size
         * PROCESSOR.image_processor.merge_size,
         min_pixels=PROCESSOR.image_processor.min_pixels,
-        max_pixels=PROCESSOR.image_processor.max_pixels,
+        max_pixels= 1e6,#PROCESSOR.image_processor.max_pixels,
     )
 
     return resized_height, resized_width

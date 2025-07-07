@@ -66,7 +66,7 @@ def get_resized_ratio(image):
         factor=PROCESSOR.image_processor.patch_size
         * PROCESSOR.image_processor.merge_size,
         min_pixels=PROCESSOR.image_processor.min_pixels,
-        max_pixels=PROCESSOR.image_processor.max_pixels,
+        max_pixels= 1e6,#PROCESSOR.image_processor.max_pixels,
     )
 
     height_ratio = resized_height / image.height
