@@ -340,9 +340,12 @@ class vLLMRollout(BaseRollout):
         ):
             self.inference_engine.free_cache_engine()
 
-        # Orby change: do not return non_tensor_batch which contains large pixels.
-        # return DataProto(batch=batch, non_tensor_batch=non_tensor_batch)
-        return DataProto(batch=batch)
+        # Orby change: do not return multimodal data which contains large pixels.
+        if "multi_modal_data" in non_tensor_batch:
+            del non_tensor_batch["multi_modal_data"]
+        if "multi_modal_inputs" in non_tensor_batch:
+            del non_tensor_batch["multi_modal_inputs"]
+        return DataProto(batch=batch, non_tensor_batch=non_tensor_batch)
 
 
 class vLLMAsyncRollout:
