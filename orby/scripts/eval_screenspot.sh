@@ -24,7 +24,7 @@ set -e
 
 # Default values
 DATASET_VERSION="screenspot"
-MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
+MODEL_PATH=/root/experiment/uground-osatlas-1kpixel/subtask/100k/global_step_300/
 MODEL_SIZE=7
 REWARD_FILE=orby/reward/screenspot.py
 REWARD_FN=reward_func
