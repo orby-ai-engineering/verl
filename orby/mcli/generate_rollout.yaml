@@ -22,7 +22,7 @@ command: |
   export S3_INPUT_PARQUET=s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_with_response/part-00000-tid-3712964276653840281-af2210b2-e910-4427-aa16-9f2a2cfdae0a-844-1-c000.snappy.parquet
   export S3_OUTPUT_PARQUET=s3://orby-osu-va/subtask/verl/rollout/${GENERATED_DATASET_NAME}.parquet
   # ~4000 rows per file is tested.
-  export PARUQET_SPLIT_NUM=16
+  export PARQUET_SPLIT_NUM=16
 
   # Set environment variables
   export N_SAMPLES=4
@@ -77,12 +77,12 @@ command: |
 
     # Split the dataset into multiple files
     # ~4000 rows per file is ideal for CPU memory
-    python3 orby/data/split_parquet.py --input_file $LOCAL_INPUT_PARQUET --output_dir $LOCAL_INPUT_PARQUET_DIR --num_splits $PARUQET_SPLIT_NUM
+    python3 orby/data/split_parquet.py --input_file $LOCAL_INPUT_PARQUET --output_dir $LOCAL_INPUT_PARQUET_DIR --num_splits $PARQUET_SPLIT_NUM
 
     # Generate dataset for each file
     INPUT_PARQUET_FILES=()
     OUTPUT_PARQUET_FILES=()
-    for i in {0..$PARUQET_SPLIT_NUM}; do
+    for i in $(seq 0 $PARQUET_SPLIT_NUM); do
       if [ $i -lt 10 ]; then
         # Add a 0 to the beginning of the number if it's less than 10
         i=0$i
