@@ -117,6 +117,7 @@ command: |
         rollout.gpu_memory_utilization=0.9 \
         rollout.max_num_batched_tokens=65536 \
         rollout.n=$N_SAMPLES \
+        rollout.remove_multimodal_data_from_rollout=True \
         +rollout.limit_images=3 $@ | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
 
     # Merge the datasets
