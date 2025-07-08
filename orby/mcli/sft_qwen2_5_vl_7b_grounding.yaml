@@ -12,7 +12,7 @@ compute:
   gpus: 64 # Number of GPUs to use (TODO: Change this according to your experiment!)
   cluster: r8z13p2 # TODO: Change this according to your experiment!
   gpu_type: h100_80gb # TODO: Change this according to your experiment!
-  node_names: [10.0.148.165, 10.0.151.72, 10.0.151.82, 10.0.152.224, 10.0.153.79, 10.0.154.216, 10.0.155.149, 10.0.155.205, 10.0.156.119, 10.0.158.66, 10.0.158.95]
+  node_names: [10.0.148.165, 10.0.151.72, 10.0.151.82, 10.0.152.224, 10.0.153.79, 10.0.154.216, 10.0.155.149, 10.0.155.205] #, 10.0.156.119, 10.0.158.66, 10.0.158.95]
 
 command: |
   # TODO: Set these variables before running the script.
