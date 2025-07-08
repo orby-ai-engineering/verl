@@ -5,7 +5,7 @@ image: whatcanyousee/verl:ngc-cu124-vllm0.8.3-sglang0.4.5-mcore0.12.0-te2.2
 integrations:
   - integration_type: git_repo
     git_repo: orby-ai-engineering/verl
-    git_branch: main
+    git_branch: dev
     pip_install: .
     ssh_clone: true
 
@@ -63,8 +63,8 @@ command: |
   # Download merged datasets
   mkdir -p ~/data/subtask_direct_distill/mix/train/
   mkdir -p ~/data/subtask_direct_distill/mix/test/
-  aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined.parquet $VAL_FILES
-  aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_block512mb/part-00000-tid-3008114883591573361-eb7554a3-5626-4452-8b82-4ba9fa62e452-352-1-c000.snappy.parquet $TRAIN_FILES
+  aws s3 cp --no-progress s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined.parquet $VAL_FILES
+  aws s3 cp --no-progress s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_block512mb/part-00000-tid-3008114883591573361-eb7554a3-5626-4452-8b82-4ba9fa62e452-352-1-c000.snappy.parquet $TRAIN_FILES
 
   # Start ray cluster and wait for all nodes
   bash orby/scripts/run_ray.sh $NUM_NODES

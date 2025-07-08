@@ -65,7 +65,7 @@ command: |
   pip3 install -e .[vllm]
 
   # Download model
-  aws s3 cp $S3_MODEL_CHECKPOINT $LOCAL_MODEL_CHECKPOINT --recursive --no-progress
+  aws s3 cp --no-progress $S3_MODEL_CHECKPOINT $LOCAL_MODEL_CHECKPOINT --recursive
 
   # Start ray cluster and wait for all nodes
   bash orby/scripts/run_ray.sh $NUM_NODES
@@ -73,7 +73,7 @@ command: |
   ray status
   if [ "$NODE_RANK" = "0" ]; then
     # Download merged datasets
-    aws s3 cp $S3_INPUT_PARQUET $LOCAL_INPUT_PARQUET --no-progress
+    aws s3 cp --no-progress $S3_INPUT_PARQUET $LOCAL_INPUT_PARQUET
 
     # Split the dataset into multiple files
     # ~4000 rows per file is ideal for CPU memory
