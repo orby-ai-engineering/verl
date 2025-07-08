@@ -18,8 +18,8 @@ command: |
   # Set these variables before running the script.
   export EXPERIMENT_NAME="SET THE EXPERIMENT NAME HERE"
   export S3_BASE_MODEL_PATH="SET THE BASE MODEL PATH HERE"
-  export S3_TRAIN_FILES=s3://orby-osu-va/subtask_comparison_study/data/generated/e_rm_grpo_half_sft_exp_7_filtered_e_0.3-0.6_rm_0.2-0.7/part-00000-tid-6696905117826521604-f75c158c-4ed7-446a-8e4c-7281420ce72b-5961-1-c000.snappy.parquet
-  export S3_VAL_FILES=s3://orby-osu-va/subtask_comparison_study/data/test/e_rm_full/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet
+  export S3_TRAIN_FILES="SET THE TRAIN FILES HERE"
+  export S3_VAL_FILES="SET THE VAL FILES HERE"
   export NUM_NODES=4
   export TRAIN_BATCH_SIZE=128
 
