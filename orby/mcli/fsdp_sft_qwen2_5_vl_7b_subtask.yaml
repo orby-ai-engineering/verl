@@ -62,8 +62,8 @@ command: |
   # Download merged datasets
   mkdir -p ~/data/subtask_direct_distill/mix/train/
   mkdir -p ~/data/subtask_direct_distill/mix/test/
-  aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined_with_response/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet $VAL_FILES
-  aws s3 cp s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_with_response/part-00000-tid-3712964276653840281-af2210b2-e910-4427-aa16-9f2a2cfdae0a-844-1-c000.snappy.parquet $TRAIN_FILES
+  aws s3 cp --no-progress s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined_with_response/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet $VAL_FILES
+  aws s3 cp --no-progress s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_with_response/part-00000-tid-3712964276653840281-af2210b2-e910-4427-aa16-9f2a2cfdae0a-844-1-c000.snappy.parquet $TRAIN_FILES
 
   # Run torchrun on each node
   torchrun \
