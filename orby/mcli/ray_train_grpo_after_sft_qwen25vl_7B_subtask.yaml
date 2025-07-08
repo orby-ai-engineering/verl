@@ -18,15 +18,15 @@ command: |
   # Set these variables before running the script.
   export EXPERIMENT_NAME="SET THE EXPERIMENT NAME HERE"
   export S3_BASE_MODEL_PATH="SET THE BASE MODEL PATH HERE"
+  export S3_TRAIN_FILES=s3://orby-osu-va/subtask_comparison_study/data/generated/e_rm_grpo_half_sft_exp_7_filtered_e_0.3-0.6_rm_0.2-0.7/part-00000-tid-6696905117826521604-f75c158c-4ed7-446a-8e4c-7281420ce72b-5961-1-c000.snappy.parquet
+  export S3_VAL_FILES=s3://orby-osu-va/subtask_comparison_study/data/test/e_rm_full/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet
   export NUM_NODES=4
   export TRAIN_BATCH_SIZE=128
+
+  # Set training environment variables
   export LOCAL_BASE_MODEL_PATH=$HOME/checkpoints/base_model
   export PROJECT_NAME=verl_sft_grpo_subtask
   export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/sft_grpo_subtask/$EXPERIMENT_NAME
-
-  # Set training environment variables
-  export S3_TRAIN_FILES=s3://orby-osu-va/subtask/verl/experiment_2/generated/gen_experiment_1_sft_exp_1_n_samples_4_temperature_0.1_filtered_e_0.3-0.6_rm_0.2-0.7/part-00000-tid-6231000246394578642-f4556697-c9c5-4de4-985e-ab218d9275f9-19638-1-c000.snappy.parquet
-  export S3_VAL_FILES=s3://orby-osu-va/subtask/verl/experiment_2/generated/gen_experiment_0_sft_exp_1_n_samples_4_temperature_0.1_test_run_filtered_e_0.3-0.6_rm_0.2-0.7/part-00000-tid-4470145863514361083-cc44afb4-b2f4-4e05-a542-a5afe677b0c8-15527-1-c000.snappy.parquet
   export LOCAL_TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train.parquet
   export LOCAL_VAL_FILES=$HOME/data/subtask_direct_distill/mix/test.parquet
   export REWARD_FN=training_reward_func
@@ -36,12 +36,12 @@ command: |
   export COORDINATES_PIXEL_SQUARE_SIZE=10
 
   # Sanity check
-  if [ "$S3_BASE_MODEL_PATH" = "SET THE BASE MODEL PATH HERE" ]; then
-    echo "S3_BASE_MODEL_PATH is not set"
+  if [ "$EXPERIMENT_NAME" = "SET THE EXPERIMENT NAME HERE" ]; then
+    echo "EXPERIMENT_NAME is not set"
     exit 1
   fi
-  if [ "$LOCAL_BASE_MODEL_PATH" = "SET THE BASE MODEL PATH HERE" ]; then
-    echo "LOCAL_BASE_MODEL_PATH is not set"
+  if [ "$S3_BASE_MODEL_PATH" = "SET THE BASE MODEL PATH HERE" ]; then
+    echo "S3_BASE_MODEL_PATH is not set"
     exit 1
   fi
 
