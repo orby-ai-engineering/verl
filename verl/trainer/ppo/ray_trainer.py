@@ -950,6 +950,13 @@ class RayPPOTrainer:
                             del gen_baseline_batch, gen_baseline_output
 
                     batch.non_tensor_batch["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))], dtype=object)
+
+                    # Add back multi_modal_inputs to batch.non_tensor_batch.
+                    if "multi_modal_inputs" in gen_batch.non_tensor_batch:
+                        batch.non_tensor_batch["multi_modal_inputs"] = gen_batch.non_tensor_batch["multi_modal_inputs"]
+                    if "multi_modal_data" in gen_batch.non_tensor_batch:
+                        batch.non_tensor_batch["multi_modal_data"] = gen_batch.non_tensor_batch["multi_modal_data"]
+
                     # repeat to align with repeated responses in rollout
                     batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                     batch = batch.union(gen_batch_output)
