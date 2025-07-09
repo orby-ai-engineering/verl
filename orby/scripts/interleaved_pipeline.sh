@@ -3,9 +3,7 @@
 # Function to find checkpoint with maximum steps from S3 directory
 find_max_step_checkpoint() {
     local s3_dir="$1"
-    
-    echo "Finding checkpoint with maximum steps in $s3_dir"
-    
+        
     # List all checkpoint directories and extract step numbers
     local max_steps=0
     local max_steps_checkpoint=""
@@ -18,14 +16,11 @@ find_max_step_checkpoint() {
         return 1
     fi
     
-    echo "Found checkpoint directories: $checkpoint_dirs"
-    
     # Find the one with maximum steps
     for checkpoint_dir in $checkpoint_dirs; do
         # Extract step number from directory name (e.g., "global_step_100" -> 100)
         if [[ $checkpoint_dir =~ global_step_([0-9]+) ]]; then
             local step_num=${BASH_REMATCH[1]}
-            echo "Found checkpoint: $checkpoint_dir with step: $step_num"
             
             if [ $step_num -gt $max_steps ]; then
                 max_steps=$step_num
@@ -38,8 +33,6 @@ find_max_step_checkpoint() {
         echo "Error: No valid checkpoint directories found with 'global_step_' pattern"
         return 1
     fi
-    
-    echo "Using checkpoint with maximum steps: $max_steps_checkpoint (step $max_steps)"
 
     echo "$s3_dir/$max_steps_checkpoint"
 }
@@ -90,7 +83,7 @@ torchrun \
     +model.fsdp_config.optimizer_offload=true
 
 # Find and copy the initial SFT checkpoint with maximum steps
-export S3_INITIAL_SFT_CHECKPOINT_DIR = $S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_initial_sft/
+export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_initial_sft/
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
 
 if [ $? -ne 0 ]; then
@@ -99,14 +92,14 @@ if [ $? -ne 0 ]; then
 fi
 
 # Copy the initial SFT checkpoint with maximum steps
-export LOCAL_SFT_CHECKPOINT = $INTERLEAVED_MODEL_DIR/initial_sft/global_step_${MAX_STEPS}
+export LOCAL_SFT_CHECKPOINT=$INTERLEAVED_MODEL_DIR/initial_sft/global_step_${MAX_STEPS}
 aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 
 for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
-    PER_STEP_TRAIN_FILES = $INTERLEAVED_DATA_DIR/$i/train.parquet
-    PER_STEP_VAL_FILES = $INTERLEAVED_DATA_DIR/$i/test.parquet
-    LOCAL_OUTPUT_PARQUET = $INTERLEAVED_DATA_DIR/$i/train_rollout.parquet
-    S3_OUTPUT_PARQUET = $S3_OUTPUT_DIR/$i/train_rollout.parquet
+    PER_STEP_TRAIN_FILES=$INTERLEAVED_DATA_DIR/$i/train.parquet
+    PER_STEP_VAL_FILES=$INTERLEAVED_DATA_DIR/$i/test.parquet
+    LOCAL_OUTPUT_PARQUET=$INTERLEAVED_DATA_DIR/$i/train_rollout.parquet
+    S3_OUTPUT_PARQUET=$S3_OUTPUT_DIR/$i/train_rollout.parquet
 
     # Start ray cluster and wait for all nodes
     bash orby/scripts/run_ray.sh $NUM_NODES
@@ -211,7 +204,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
     fi
 
     # Find and copy the GRPO checkpoint with maximum steps
-    export S3_GRPO_CHECKPOINT_DIR = $S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_${i}_grpo/
+    export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_${i}_grpo/
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_GRPO_CHECKPOINT_DIR")
     if [ $? -ne 0 ]; then
         echo "Failed to find GRPO checkpoint for step $i"
@@ -224,7 +217,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
       --local_dir $MAX_STEPS_CHECKPOINT/actor \
       --target_dir $MAX_STEPS_CHECKPOINT/hf/
 
-    export LOCAL_GRPO_CHECKPOINT = $INTERLEAVED_MODEL_DIR/grpo_${i}/global_step_${MAX_STEPS}
+    export LOCAL_GRPO_CHECKPOINT=$INTERLEAVED_MODEL_DIR/grpo_${i}/global_step_${MAX_STEPS}
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
 
     # 4) Run SFT step
@@ -273,12 +266,12 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
         +model.fsdp_config.optimizer_offload=true
 
     # Find and copy the SFT checkpoint with maximum steps
-    export S3_SFT_CHECKPOINT_DIR = $S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_${i}_sft/
-    export MAX_STEPS_CHECKPOINT = $(find_max_step_checkpoint "$S3_SFT_CHECKPOINT_DIR")
+    export S3_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_${i}_sft/
+    export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_SFT_CHECKPOINT_DIR")
     if [ $? -ne 0 ]; then
         echo "Failed to find SFT checkpoint for step $i"
         exit 1
     fi
-    export LOCAL_SFT_CHECKPOINT = $INTERLEAVED_MODEL_DIR/sft_${i}/global_step_${MAX_STEPS}
+    export LOCAL_SFT_CHECKPOINT=$INTERLEAVED_MODEL_DIR/sft_${i}/global_step_${MAX_STEPS}
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 done
