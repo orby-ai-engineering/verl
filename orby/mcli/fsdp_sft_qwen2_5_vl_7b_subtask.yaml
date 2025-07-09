@@ -62,8 +62,8 @@ command: |
   export PYTHONPATH="/workspace/verl:$PYTHONPATH"
 
   # Download merged datasets
-  aws s3 cp $S3_VAL_FILES $VAL_FILES
-  aws s3 cp $S3_TRAIN_FILES $TRAIN_FILES
+  aws s3 cp --no-progress $S3_VAL_FILES $VAL_FILES
+  aws s3 cp --no-progress $S3_TRAIN_FILES $TRAIN_FILES
 
   # Run torchrun on each node
   torchrun \
