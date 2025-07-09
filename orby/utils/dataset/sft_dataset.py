@@ -161,16 +161,17 @@ class SFTDataset(Dataset):
 
     def _build_messages(self, example: dict):
         messages: list = example.pop(self.prompt_key)
-        # Add response messages if they exist (for SFT training)
-        if self.response_key is not None and self.response_dict_key is None:
-            if self.response_key in example:
-                response_messages = example[self.response_key]
-                messages.extend(response_messages)
-        else:
-            if self.response_key in example and self.response_dict_key in example[self.response_key]:
-                response_messages = example[self.response_key].pop(self.response_dict_key)
-                messages.extend(response_messages)
+        # SFT Training will always assume that the response_key is 'response' (which is different from verl which assumes that it is in the extra_info dict under the key 'answer')
+        if (self.response_key != "response") or (self.response_key not in example):
+            raise ValueError(f"response_key '{self.response_key}' is not set to 'response' or is not present in example. Available keys: {list(example.keys())}")
         
+        response_messages = ""
+
+        response_messages = example[self.response_key]
+        if response_messages:
+            messages.extend(response_messages)
+        else:
+            raise ValueError("No response messages found in example")
 
         if self.image_key in example or self.video_key in example:
             for message in messages:

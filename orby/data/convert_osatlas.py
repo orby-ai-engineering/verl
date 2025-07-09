@@ -11,6 +11,33 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+"""
+# Download the OS Atlas dataset
+huggingface-cli download OS-Copilot/OS-Atlas-data \
+    --repo-type dataset \
+    --local-dir=$HOME/data/os_atlas \
+    --include="desktop_domain/linux_splited.json"
+huggingface-cli download OS-Copilot/OS-Atlas-data \
+    --repo-type dataset \
+    --local-dir=$HOME/data/os_atlas \
+    --include="desktop_domain/linux_images.zip"
+# Unzip the images
+cd $HOME/data/os_atlas/desktop_domain/
+unzip linux_images.zip
+cd -
+# Convert the dataset to parquet format
+python orby/data/convert_os_atlas.py \
+    --json_file ~/data/os_atlas/desktop_domain/linux_splited.json \
+    --image_dir ~/data/os_atlas/desktop_domain/ \
+    --local_dir ~/data/os_atlas/desktop_domain \
+    --output_filename linux \
+    --prompt_format=sft
+"""
+
+
+
 """
 Preprocess the Uground dataset to parquet format
 """
@@ -87,13 +114,60 @@ def save_in_chunks(
     return file_counter
 
 
-def process_in_chunks(streaming_dataset, chunk_size):
-    """Process streaming dataset in chunks with immediate saving capability"""
+def load_os_atlas_data(json_path: str, image_dir: str, max_examples: int = None):
+    """Load and process OS Atlas data from JSON and image directory."""
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    examples_yielded = 0
+
+    for item in data:
+        if max_examples is not None and examples_yielded >= max_examples:
+            break
+
+        img_filename = item["img_filename"]
+        img_path = os.path.join(image_dir, img_filename)
+
+        if not os.path.exists(img_path):
+            print(f"Warning: Image file not found: {img_path}")
+            continue
+
+        # Load and process image
+        try:
+            image = Image.open(img_path)
+
+            img_byte_arr = io.BytesIO()
+            image.save(img_byte_arr, format=image.format or "PNG")
+            img_byte_arr = img_byte_arr.getvalue()
+        except Exception as e:
+            print(f"Error processing image {img_path}: {e}")
+            continue
+
+        # Process each element in the elements list
+        for element in item["elements"]:
+            instruction = element["instruction"]
+            bbox = element["bbox"]
+
+            # TODO: whether this works for from_generator() below.
+            yield (
+                {
+                    "image": img_byte_arr,
+                    "instruction": instruction,
+                    "bbox": bbox,
+                    "img_filename": img_filename,
+                }
+            )
+            examples_yielded += 1
+    print(f"Yielded {examples_yielded} examples")
+    
+
+def process_in_chunks(dataset, chunk_size):
+    """Process dataset in chunks with immediate saving capability"""
     chunk = []
     total_processed = 0
 
 
-    for i, example in enumerate(streaming_dataset):
+    for i, example in enumerate(dataset):
         if (
             hasattr(process_in_chunks, "max_examples")
             and total_processed >= process_in_chunks.max_examples
@@ -142,10 +216,8 @@ def process_in_chunks(streaming_dataset, chunk_size):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--local_dir", default="~/data/uground/")
+    parser.add_argument("--local_dir", default="~/data/os_atlas/desktop_domain/os_atlas_converted/")
     parser.add_argument("--hdfs_dir", default=None)
-    parser.add_argument("--data_files", default="shard_*.parquet")
-    parser.add_argument("--output_filename", default="train")
     parser.add_argument(
         "--prompt_format",
         choices=["qwen", "thinking", "subtask", "sft"],
@@ -165,6 +237,15 @@ if __name__ == "__main__":
         help="Maximum number of examples to process (for testing)",
     )
 
+    parser.add_argument(
+        "--json_file",
+        default="/root/data/os_atlas/desktop_domain/filtered_data_clean.json",
+        help="Path to the JSON file containing OS Atlas data",
+    )
+    parser.add_argument(
+        "--image_dir", default="/root/data/os_atlas/desktop_domain/merged_images/", help="Path to the directory containing images"
+    )
+
 
     args = parser.parse_args()
 
@@ -178,32 +259,16 @@ if __name__ == "__main__":
         print("   Continuing with processing...")
 
 
-    data_source = "osunlp/UGround-V1-Data-Box"
-    print(
-        f"Loading the {data_source} dataset from huggingface in streaming mode...",
-        flush=True,
-    )
-
     # Load in streaming mode
-    dataset = datasets.load_dataset(
-        data_source, data_files=args.data_files, streaming=True
-    )
-    dataset = dataset["train"]
+    dataset = Dataset.from_generator( lambda: load_os_atlas_data(args.json_file, args.image_dir, args.max_examples)
+)
 
     def make_map_fn(split):
         def process_fn(example, idx):
             image = example.pop("image")
-            conversation = example.pop("conversations").strip()
-            # Use the first message for now. Uground has multiple grounding
-            # commands / groundtruths in the conversation.
-            command, label = json.loads(conversation)[:2]
-            assert command["from"] == "human" and label["from"] == "gpt"
-            instruction = command["value"]
-            label_text = label["value"]
-
-            # Parse the label text as "(x1, y1, x2, y2)" format
-            label_text = label_text.strip("()")
-            bbox = [int(x.strip()) for x in label_text.split(",")]
+            instruction = example.pop("instruction")
+            print('instruction', instruction)
+            bbox = example.pop("bbox")
             assert len(bbox) == 4, f"Expected 4 coordinates, got {len(bbox)}"
 
             # Get image and resize ratios
@@ -211,13 +276,12 @@ if __name__ == "__main__":
                 image = Image.open(io.BytesIO(image))
             resized_height, resized_width = get_resized_wh(image)
 
-            # Adjust bbox based on resize ratios. Uground labels range from
-            # [0, 999]
+            
             bbox = [
-                bbox[0] * resized_width / 1000.0,
-                bbox[1] * resized_height / 1000.0,
-                bbox[2] * resized_width / 1000.0,
-                bbox[3] * resized_height / 1000.0,
+                bbox[0] * resized_width,
+                bbox[1] * resized_height,
+                bbox[2] * resized_width,
+                bbox[3] * resized_height,
             ]
 
             ground_truth = {
@@ -230,6 +294,7 @@ if __name__ == "__main__":
             answer = [
                 {"role": "assistant", "content": f"<answer>click({center_x:.0f}, {center_y:.0f})</answer>"}
             ]
+            
 
             data = {
                 "data_source": "uground",
