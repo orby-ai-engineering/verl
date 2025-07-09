@@ -3,8 +3,6 @@
 # Function to find checkpoint with maximum steps from S3 directory
 find_max_step_checkpoint() {
     local s3_dir="$1"
-    local local_base_dir="$2"
-    local checkpoint_type="$3"
     
     echo "Finding checkpoint with maximum steps in $s3_dir"
     
@@ -13,21 +11,21 @@ find_max_step_checkpoint() {
     local max_steps_checkpoint=""
     
     # Get list of checkpoint directories from S3
-    local checkpoint_dirs=$(aws s3 ls "$s3_dir/" | grep "global_step_" | awk '{print $2}' | sed 's|/$||')
+    local checkpoint_dirs=$(aws s3 ls "$s3_dir" | grep "global_step_" | awk '{print $2}' | sed 's|/$||')
     
     if [ -z "$checkpoint_dirs" ]; then
-        echo "Error: No checkpoint directories found in $s3_dir/"
+        echo "Error: No checkpoint directories found in $s3_dir"
         return 1
     fi
     
-    echo "Found ${checkpoint_type} checkpoint directories: $checkpoint_dirs"
+    echo "Found checkpoint directories: $checkpoint_dirs"
     
     # Find the one with maximum steps
     for checkpoint_dir in $checkpoint_dirs; do
         # Extract step number from directory name (e.g., "global_step_100" -> 100)
         if [[ $checkpoint_dir =~ global_step_([0-9]+) ]]; then
             local step_num=${BASH_REMATCH[1]}
-            echo "Found ${checkpoint_type} checkpoint: $checkpoint_dir with step: $step_num"
+            echo "Found checkpoint: $checkpoint_dir with step: $step_num"
             
             if [ $step_num -gt $max_steps ]; then
                 max_steps=$step_num
@@ -37,12 +35,12 @@ find_max_step_checkpoint() {
     done
     
     if [ -z "$max_steps_checkpoint" ]; then
-        echo "Error: No valid checkpoint directories found with 'global_step_' pattern in ${checkpoint_type} directory"
+        echo "Error: No valid checkpoint directories found with 'global_step_' pattern"
         return 1
     fi
     
-    echo "Using ${checkpoint_type} checkpoint with maximum steps: $max_steps_checkpoint (step $max_steps)"
-    
+    echo "Using checkpoint with maximum steps: $max_steps_checkpoint (step $max_steps)"
+
     echo "$s3_dir/$max_steps_checkpoint"
 }
 
@@ -93,7 +91,7 @@ torchrun \
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export S3_INITIAL_SFT_CHECKPOINT_DIR = $S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_initial_sft/
-export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR" "$INTERLEAVED_MODEL_DIR/initial_sft" "initial SFT")
+export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
 
 if [ $? -ne 0 ]; then
     echo "Failed to find initial SFT checkpoint"
@@ -214,7 +212,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
 
     # Find and copy the GRPO checkpoint with maximum steps
     export S3_GRPO_CHECKPOINT_DIR = $S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_${i}_grpo/
-    export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_GRPO_CHECKPOINT_DIR" "$INTERLEAVED_MODEL_DIR/grpo_${i}" "GRPO step ${i}")
+    export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_GRPO_CHECKPOINT_DIR")
     if [ $? -ne 0 ]; then
         echo "Failed to find GRPO checkpoint for step $i"
         exit 1
@@ -276,7 +274,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
 
     # Find and copy the SFT checkpoint with maximum steps
     export S3_SFT_CHECKPOINT_DIR = $S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_${i}_sft/
-    export MAX_STEPS_CHECKPOINT = $(find_max_step_checkpoint "$S3_SFT_CHECKPOINT_DIR" "$INTERLEAVED_MODEL_DIR/sft_${i}" "SFT step ${i}")
+    export MAX_STEPS_CHECKPOINT = $(find_max_step_checkpoint "$S3_SFT_CHECKPOINT_DIR")
     if [ $? -ne 0 ]; then
         echo "Failed to find SFT checkpoint for step $i"
         exit 1
