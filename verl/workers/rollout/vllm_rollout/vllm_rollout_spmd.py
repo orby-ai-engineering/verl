@@ -350,7 +350,7 @@ class vLLMRollout(BaseRollout):
             if "multi_modal_inputs" in non_tensor_batch:
                 del non_tensor_batch["multi_modal_inputs"]
         for key in non_tensor_batch.keys():
-            print(f"After: key: {key}, type: {type(non_tensor_batch[key])}")
+            print(f"After: key: {key}, {non_tensor_batch[key]}")
         return DataProto(batch=batch, non_tensor_batch=non_tensor_batch)
 
 
