@@ -951,7 +951,7 @@ class RayPPOTrainer:
 
                     batch.non_tensor_batch["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))], dtype=object)
 
-                    # Add back multi_modal_inputs to batch.non_tensor_batch.
+                    # Orby change: Add back multi_modal_inputs to batch.non_tensor_batch.
                     if self.config.actor_rollout_ref.rollout.get("remove_multimodal_data_from_rollout", True):
                         if "multi_modal_inputs" in gen_batch.non_tensor_batch:
                             batch.non_tensor_batch["multi_modal_inputs"] = gen_batch.non_tensor_batch["multi_modal_inputs"]
