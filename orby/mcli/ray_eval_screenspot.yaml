@@ -1,0 +1,92 @@
+name: model-merger
+image: whatcanyousee/verl:ngc-cu124-vllm0.8.3-sglang0.4.5-mcore0.12.0-te2.2
+integrations:
+  - integration_type: git_repo
+    git_repo: orby-ai-engineering/verl
+    git_branch: main
+    pip_install: .
+    ssh_clone: true
+command: |
+  cd /workspace/verl
+  sed -i 's|mirrors.tuna.tsinghua.edu.cn|archive.ubuntu.com|g' /etc/apt/sources.list
+  apt update
+  apt install iproute2 -y
+  apt install -y dnsutils
+  apt install -y emacs
+  apt install -y awscli
+  pip install 'urllib3<2'
+  pip install s3fs
+  pip install boto3
+
+  # Define script params
+  export MODEL_NAMES="ByteDance-Seed/UI-TARS-1.5-7B,Qwen/Qwen2.5-VL-7B-Instruct"
+  export DATASET_NAMES="screenspot_subtask,screenspot_v2_subtask,screenspot_pro_subtask"
+
+  # Convert comma-separated strings to arrays
+  IFS=',' read -ra MODEL_ARRAY <<< "$MODEL_NAMES"
+
+  # Check if MODEL_NAMES contains any s3 paths and download them locally
+  NEW_MODEL_NAMES=""
+  for model in "${MODEL_ARRAY[@]}"; do
+    if [[ "$model" == s3://* ]]; then
+      # Extract the model base name from the s3 path
+      model_basename=$(basename "$model")
+      local_dir=~/checkpoints/"$model_basename"
+      mkdir -p "$local_dir"
+      echo "Downloading model from $model to $local_dir"
+      aws s3 sync "$model" "$local_dir"
+      # Use the local directory as the model name for downstream scripts
+      NEW_MODEL_NAMES+="$local_dir,"
+    else
+      NEW_MODEL_NAMES+="$model,"
+    fi
+  done
+  # Remove trailing comma
+  export MODEL_NAMES="${NEW_MODEL_NAMES%,}"
+
+
+  if [ "$NODE_RANK" = "0" ]; then
+
+    # Convert comma-separated strings to arrays
+    IFS=',' read -ra MODEL_ARRAY <<< "$MODEL_NAMES"
+    IFS=',' read -ra DATASET_ARRAY <<< "$DATASET_NAMES"
+
+    # Iterate over each model and dataset combination
+    for model in "${MODEL_ARRAY[@]}"; do
+      for dataset in "${DATASET_ARRAY[@]}"; do
+        echo "Running evaluation for model: $model on dataset: $dataset"
+        
+        # Set the model and dataset for this iteration
+        export MODEL_NAME="$model"
+        export DATASET_NAME="$dataset"
+        
+        # Run the evaluation script with retry logic
+        max_retries=3
+        retry_count=0
+        success=false
+        
+        while [ $retry_count -lt $max_retries ] && [ "$success" = false ]; do
+          echo "Attempt $((retry_count + 1)) of $max_retries for model: $model on dataset: $dataset"
+          
+          if bash ../scripts/eval_screenspot.sh --version "$dataset" --model_name "$model"; then
+            echo "Successfully completed evaluation for model: $model on dataset: $dataset"
+            success=true
+          else
+            retry_count=$((retry_count + 1))
+            if [ $retry_count -lt $max_retries ]; then
+              echo "Evaluation failed for model: $model on dataset: $dataset. Retrying in 30 seconds..."
+              sleep 30
+            else
+              echo "ERROR: Evaluation failed for model: $model on dataset: $dataset after $max_retries attempts"
+              # Do not exit; just continue to the next model+dataset combination
+            fi
+          fi
+        done
+        echo "----------------------------------------"
+      done
+    done
+  fi
+compute:
+  gpus: 8 # Number of GPUs to use
+  cluster: r8z13p2
+  gpu_type: h100_80gb

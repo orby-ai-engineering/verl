@@ -40,6 +40,10 @@ while [[ $# -gt 0 ]]; do
             DATASET_VERSION="$2"
             shift 2
             ;;
+        --model_name)
+            MODEL_PATH="$2"
+            shift 2
+            ;;
         --model_size)
             MODEL_SIZE="$2"
             shift 2
@@ -50,6 +54,22 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Function to handle errors and exit with proper code
+handle_error() {
+    local exit_code=$?
+    echo "ERROR: Script failed with exit code $exit_code"
+    echo "Failed at line: $1"
+    exit $exit_code
+}
+
+# Set error handling
+trap 'handle_error $LINENO' ERR
+
+echo "Starting evaluation with:"
+echo "  Dataset version: $DATASET_VERSION"
+echo "  Model path: $MODEL_PATH"
+echo "  Model size: $MODEL_SIZE"
 
 # Set dataset-specific variables
 case $DATASET_VERSION in
@@ -163,7 +183,14 @@ else
             python orby/data/convert_screenspot_pro.py --local_dir "$DATA_PATH" --image_dir="$DATA_PATH/images/" --annotations_dir="$DATA_PATH/annotations/" --prompt_format "$PROMPT_FORMAT"
             ;;
     esac
+    
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Dataset conversion failed"
+        exit 1
+    fi
 fi
+
+echo "Starting generation phase..."
 
 # Generation
 # Screenspot pro has example with more than 16k tokens.
@@ -186,6 +213,13 @@ python3 -m orby.trainer.main_generation \
     rollout.gpu_memory_utilization=0.7 \
     rollout.max_num_batched_tokens=65536
 
+if [ $? -ne 0 ]; then
+    echo "ERROR: Generation phase failed"
+    exit 1
+fi
+
+echo "Generation completed successfully. Starting evaluation phase..."
+
 # Evaluation
 python3 -m orby.trainer.main_eval \
     data.path=$DATA_PATH/$OUTPUT_FILE \
@@ -193,4 +227,15 @@ python3 -m orby.trainer.main_eval \
     data.response_key=responses \
     custom_reward_function.path=$REWARD_FILE \
     custom_reward_function.name=$REWARD_FN \
-    +custom_reward_function.reward_kwargs.prompt_format=$PROMPT_FORMAT
+    +custom_reward_function.reward_kwargs.prompt_format=$PROMPT_FORMAT \
+    --upload_to_wandb \
+    --model_name "$MODEL_PATH" \
+    --dataset_name "$DATASET_VERSION"
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: Evaluation phase failed"
+    exit 1
+fi
+
+echo "SUCCESS: Evaluation completed successfully for $DATASET_VERSION with model $MODEL_PATH"
+exit 0
