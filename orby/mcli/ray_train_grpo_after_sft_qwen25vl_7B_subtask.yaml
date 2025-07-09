@@ -74,8 +74,8 @@ command: |
   pip3 install -e .[vllm]
 
   # Download merged datasets
-  aws s3 cp $S3_VAL_FILES $LOCAL_VAL_FILES
-  aws s3 cp $S3_TRAIN_FILES $LOCAL_TRAIN_FILES
+  aws s3 cp --no-progress $S3_VAL_FILES $LOCAL_VAL_FILES
+  aws s3 cp --no-progress $S3_TRAIN_FILES $LOCAL_TRAIN_FILES
 
   # Start ray cluster and wait for all nodes
   bash orby/scripts/run_ray.sh $NUM_NODES
