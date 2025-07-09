@@ -75,10 +75,10 @@ torchrun \
     +model.enable_activation_offload=true \
     model.fsdp_config.offload_params=true \
     +model.fsdp_config.param_offload=true \
-    trainer.default_local_dir=$S3_CHECKPOINT_DIR/initial_sft \
+    trainer.default_local_dir=$S3_CHECKPOINT_DIR \
     trainer.total_training_steps=null \
     trainer.project_name=$PROJECT_NAME \
-    trainer.experiment_name=$EXPERIMENT_NAME \
+    trainer.experiment_name=${EXPERIMENT_NAME}_initial_sft \
     trainer.logger=[console,wandb] \
     trainer.default_hdfs_dir=null \
     +trainer.val_interval=100 \
@@ -92,7 +92,8 @@ torchrun \
     +model.fsdp_config.optimizer_offload=true
 
 # Find and copy the initial SFT checkpoint with maximum steps
-export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_CHECKPOINT_DIR/initial_sft" "$INTERLEAVED_MODEL_DIR/initial_sft" "initial SFT")
+export S3_INITIAL_SFT_CHECKPOINT_DIR = $S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_initial_sft/
+export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR" "$INTERLEAVED_MODEL_DIR/initial_sft" "initial SFT")
 
 if [ $? -ne 0 ]; then
     echo "Failed to find initial SFT checkpoint"
