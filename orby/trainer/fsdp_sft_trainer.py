@@ -556,6 +556,7 @@ class FSDPSFTTrainer:
             loss_mask = loss_mask.masked_fill(last_token_mask, 0)
             # Remove last column and flatten
             loss_mask = loss_mask[:, :-1].reshape(-1).to(self.device_name)
+            debug_loss_mask_2d = loss_mask.view(batch_size, -1) if self.device_mesh.get_rank() == 0 else None
         loss_fct = nn.CrossEntropyLoss(reduction="none")
 
         # Context manager for sequence parallel if needed
@@ -587,6 +588,40 @@ class FSDPSFTTrainer:
                 # Flatten the tokens
                 shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
                 shift_labels = shift_labels.view(-1)
+                ## Enhanced Debug prints - Show model predictions
+                #if self.device_mesh.get_rank() == 0 and debug_loss_mask_2d is not None:
+                    #print("\n=== Debug Info ===")
+                    #print("Full prompt:")
+                    #print(self.tokenizer.decode(input_ids[0]))
+
+                    ## Ground truth tokens under loss
+                    #ground_truth_tokens = input_ids[0, 1:][debug_loss_mask_2d[0].bool()]
+                    #print("\nGround truth (tokens under loss):")
+                    #print(self.tokenizer.decode(ground_truth_tokens))
+                    #print(f"\nTotal tokens under loss: {loss_mask.sum().item()}")
+
+                    ## Model predictions
+                    #with torch.no_grad():
+                    #    predicted_token_ids = torch.argmax(shift_logits.view(batch_size, -1, self.model.config.vocab_size), dim=-1)
+                    #    predicted_tokens_masked = predicted_token_ids[0][debug_loss_mask_2d[0].bool()]
+                    #    print("\nModel predictions (tokens under loss):")
+                    #    print(self.tokenizer.decode(predicted_tokens_masked))
+                    #    
+                    #    # Token-by-token comparison
+                    #    print("\n=== Token-by-Token Comparison ===")
+                    #    ground_truth_list = ground_truth_tokens.tolist()
+                    #    predicted_list = predicted_tokens_masked.tolist()
+                    #    
+                    #    min_len = min(len(ground_truth_list), len(predicted_list))
+                    #    for i in range(min_len):
+                    #        gt_id = ground_truth_list[i]
+                    #        pred_id = predicted_list[i]
+                    #        gt_token = self.tokenizer.decode([gt_id])
+                    #        pred_token = self.tokenizer.decode([pred_id])
+                    #        match = "✓" if gt_id == pred_id else "✗"
+                    #        print(f"{i:3d}: GT='{gt_token}' | PRED='{pred_token}' {match}")
+                    #
+                    #print("================\n")
                 # Enable model parallelism
                 shift_labels = shift_labels.to(shift_logits.device)
                 loss = loss_fct(shift_logits, shift_labels)
