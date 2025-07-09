@@ -91,6 +91,7 @@ command: |
             data.truncation='error' \
             data.image_key=images \
             data.shuffle=True \
+            +data.max_length=8192 \
             actor_rollout_ref.model.path=$MODEL_NAME \
             actor_rollout_ref.actor.optim.lr=1e-6 \
             actor_rollout_ref.model.use_remove_padding=True \

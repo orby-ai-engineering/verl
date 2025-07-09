@@ -517,6 +517,18 @@ class FSDPSFTTrainer:
                 device=attention_mask.device,
             )
 
+            # Debug: Print detokenized version of all inputs in the batch
+            if self.device_mesh.get_rank() == 0:  # Only print on rank 0 to avoid spam
+                print("=== DEBUG: Detokenized Inputs ===")
+                for i in range(min(3, batch_size)):  # Print first 3 examples
+                    detokenized = self.tokenizer.decode(input_ids[i], skip_special_tokens=False)
+                    print(f"Example {i}:")
+                    print(f"Input IDs shape: {input_ids[i].shape}")
+                    print(f"Detokenized: {detokenized}")
+                    print(f"Assistant token IDs: {assistant_token_ids}")
+                    print("---")
+                print("=== END DEBUG ===")
+
             assistant_len = len(assistant_token_ids)
             prompt_end_position = torch.zeros(
                 batch_size, device=attention_mask.device, dtype=torch.long
