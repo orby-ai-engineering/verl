@@ -1,4 +1,4 @@
-name: verl-finetune-sft-subtask
+name: verl-finetune-sft
 
 image: whatcanyousee/verl:ngc-cu124-vllm0.8.3-sglang0.4.5-mcore0.12.0-te2.2
 
@@ -87,7 +87,7 @@ command: |
     +data.image_key=images \
     +processor.use_fast=true \
     +processor.trust_remote_code=true \
-    optim.lr=1e-6 \
+    optim.lr=1e-5 \
     model.partial_pretrain=$MODEL_NAME \
     model.fsdp_config.cpu_offload=true \
     model.enable_gradient_checkpointing=true \
