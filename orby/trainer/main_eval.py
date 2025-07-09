@@ -18,7 +18,7 @@ The input is a parquet file that contains N generated sequences and (optional) t
 """
 
 from collections import defaultdict
-import argparse
+import os
 import pprint
 
 import hydra
@@ -161,18 +161,6 @@ def upload_to_wandb(metric_dict, model_name=None, dataset_name=None):
     config_path="../../verl/trainer/config", config_name="evaluation", version_base=None
 )
 def main(config):
-    # Parse additional command line arguments
-    parser = argparse.ArgumentParser(description="Evaluation script with wandb upload option")
-    parser.add_argument("--upload_to_wandb", action="store_true", 
-                       help="Upload results to Weights & Biases")
-    parser.add_argument("--model_name", type=str, default=None,
-                       help="Name of the model being evaluated")
-    parser.add_argument("--dataset_name", type=str, default=None,
-                       help="Name of the dataset being evaluated")
-    
-    # Parse known args to avoid conflicts with hydra
-    args, unknown = parser.parse_known_args()
-    
     local_path = copy_to_local(config.data.path)
     dataset = pd.read_parquet(
         local_path,
@@ -223,9 +211,11 @@ def main(config):
 
     pprint.pprint(metric_dict)
     
-    # Upload to wandb if requested
-    if args.upload_to_wandb:
-        upload_to_wandb(metric_dict, args.model_name, args.dataset_name)
+    # Upload to wandb if environment variable is set
+    if os.getenv("UPLOAD_TO_WANDB", "false").lower() == "true":
+        model_name = os.getenv("MODEL_NAME")
+        dataset_name = os.getenv("DATASET_NAME")
+        upload_to_wandb(metric_dict, model_name, dataset_name)
 
 
 if __name__ == "__main__":

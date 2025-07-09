@@ -221,16 +221,17 @@ fi
 echo "Generation completed successfully. Starting evaluation phase..."
 
 # Evaluation
+export UPLOAD_TO_WANDB=true
+export MODEL_NAME="$MODEL_PATH"
+export DATASET_NAME="$DATASET_VERSION"
+
 python3 -m orby.trainer.main_eval \
     data.path=$DATA_PATH/$OUTPUT_FILE \
     data.prompt_key=prompt \
     data.response_key=responses \
     custom_reward_function.path=$REWARD_FILE \
     custom_reward_function.name=$REWARD_FN \
-    +custom_reward_function.reward_kwargs.prompt_format=$PROMPT_FORMAT \
-    --upload_to_wandb \
-    --model_name "$MODEL_PATH" \
-    --dataset_name "$DATASET_VERSION"
+    +custom_reward_function.reward_kwargs.prompt_format=$PROMPT_FORMAT
 
 if [ $? -ne 0 ]; then
     echo "ERROR: Evaluation phase failed"
