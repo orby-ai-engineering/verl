@@ -89,7 +89,7 @@ def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
         logger.info("Standardizing response message key order")
         
         def reorder_response(example):
-            resp = example["response"]
+            resp = example["response"][0]
             example["response"] = [
                 {
                     "content": resp['content'],
