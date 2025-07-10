@@ -107,6 +107,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
     bash orby/scripts/run_ray.sh $NUM_NODES
 
     # 1) Run rollout using the previous checkpoint
+    echo "======Step $i: generating rollout data======"
     if [ "$NODE_RANK" = "0" ]; then
         ray job submit --address="http://127.0.0.1:8265" \
         --runtime-env=verl/trainer/runtime_env.yaml \
@@ -139,9 +140,11 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
         aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $S3_OUTPUT_PARQUET
 
         # 2) Filtering step
+        echo "======Step $i: filtering rollout data======"
         # Placeholder for filtering step
 
         # 3) Run GRPO step
+        echo "======Step $i: running GRPO======"
         ray job submit --address="http://127.0.0.1:8265" \
             --runtime-env=verl/trainer/runtime_env.yaml \
             --no-wait \
@@ -213,6 +216,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
         exit 1
     fi
     
+    echo "======Step $i: merging GRPO checkpoint======"
     python3 orby/scripts/model_merger.py merge \
       --backend fsdp \
       --hf_model_path Qwen/Qwen2.5-VL-7B-Instruct \
@@ -224,6 +228,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
 
     # 4) Run SFT step
+    echo "======Step $i: running SFT======"
     export SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_sft
     export SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${SFT_EXPERIMENT_NAME}/
     torchrun \
