@@ -40,52 +40,53 @@ find_max_step_checkpoint() {
 export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 
 # Run initial SFT step
-torchrun \
-    --nproc_per_node=8 \
-    --nnodes=$NUM_NODES \
-    --node_rank=$NODE_RANK \
-    --master_addr=$MASTER_ADDR \
-    --master_port=${MASTER_PORT:-29500} \
-    -m orby.trainer.fsdp_sft_trainer \
-    data.train_batch_size=$TRAIN_BATCH_SIZE \
-    data.micro_batch_size_per_gpu=2 \
-    data.train_files=$SFT_TRAIN_FILES \
-    data.val_files=$SFT_VAL_FILES \
-    +data.max_prompt_length=7680 \
-    +data.max_response_length=512 \
-    +data.filter_overlong_prompts=False \
-    data.truncation='error' \
-    +data.shuffle=True \
-    data.prompt_key=prompt \
-    data.response_key=response \
-    +data.image_key=images \
-    +processor.use_fast=true \
-    +processor.trust_remote_code=true \
-    optim.lr=1e-6 \
-    model.partial_pretrain=$MODEL_NAME \
-    model.fsdp_config.cpu_offload=true \
-    model.enable_gradient_checkpointing=true \
-    +model.enable_activation_offload=true \
-    model.fsdp_config.offload_params=true \
-    +model.fsdp_config.param_offload=true \
-    trainer.default_local_dir=$S3_INITIAL_SFT_CHECKPOINT_DIR \
-    trainer.total_training_steps=null \
-    trainer.project_name=$PROJECT_NAME \
-    trainer.experiment_name=${EXPERIMENT_NAME}_initial_sft \
-    trainer.logger=[console,wandb] \
-    trainer.default_hdfs_dir=null \
-    +trainer.val_interval=100 \
-    +trainer.save_interval=100 \
-    trainer.total_epochs=1 \
-    ulysses_sequence_parallel_size=1 \
-    use_remove_padding=false \
-    +model.fsdp_config.reshard_after_forward=true \
-    +model.use_remove_padding=true \
-    model.fsdp_config.wrap_policy.min_num_params=1000000 \
-    +model.fsdp_config.optimizer_offload=true
+# torchrun \
+#     --nproc_per_node=8 \
+#     --nnodes=$NUM_NODES \
+#     --node_rank=$NODE_RANK \
+#     --master_addr=$MASTER_ADDR \
+#     --master_port=${MASTER_PORT:-29500} \
+#     -m orby.trainer.fsdp_sft_trainer \
+#     data.train_batch_size=$TRAIN_BATCH_SIZE \
+#     data.micro_batch_size_per_gpu=2 \
+#     data.train_files=$SFT_TRAIN_FILES \
+#     data.val_files=$SFT_VAL_FILES \
+#     +data.max_prompt_length=7680 \
+#     +data.max_response_length=512 \
+#     +data.filter_overlong_prompts=False \
+#     data.truncation='error' \
+#     +data.shuffle=True \
+#     data.prompt_key=prompt \
+#     data.response_key=response \
+#     +data.image_key=images \
+#     +processor.use_fast=true \
+#     +processor.trust_remote_code=true \
+#     optim.lr=1e-6 \
+#     model.partial_pretrain=$MODEL_NAME \
+#     model.fsdp_config.cpu_offload=true \
+#     model.enable_gradient_checkpointing=true \
+#     +model.enable_activation_offload=true \
+#     model.fsdp_config.offload_params=true \
+#     +model.fsdp_config.param_offload=true \
+#     trainer.default_local_dir=$S3_INITIAL_SFT_CHECKPOINT_DIR \
+#     trainer.total_training_steps=null \
+#     trainer.project_name=$PROJECT_NAME \
+#     trainer.experiment_name=${EXPERIMENT_NAME}_initial_sft \
+#     trainer.logger=[console,wandb] \
+#     trainer.default_hdfs_dir=null \
+#     +trainer.val_interval=100 \
+#     +trainer.save_interval=100 \
+#     trainer.total_epochs=1 \
+#     ulysses_sequence_parallel_size=1 \
+#     use_remove_padding=false \
+#     +model.fsdp_config.reshard_after_forward=true \
+#     +model.use_remove_padding=true \
+#     model.fsdp_config.wrap_policy.min_num_params=1000000 \
+#     +model.fsdp_config.optimizer_offload=true
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+echo "Found initial SFT checkpoint: $MAX_STEPS_CHECKPOINT"
 
 if [ $? -ne 0 ]; then
     echo "Failed to find initial SFT checkpoint"
@@ -95,7 +96,8 @@ fi
 # Copy the initial SFT checkpoint with maximum steps
 export STEP_DIR=$(echo $MAX_STEPS_CHECKPOINT | grep -o "global_step_[0-9]*")
 export LOCAL_SFT_CHECKPOINT=$INTERLEAVED_MODEL_DIR/initial_sft/$STEP_DIR
-aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+aws s3 cp --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+ls -lh $LOCAL_SFT_CHECKPOINT
 
 for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
     PER_STEP_TRAIN_FILES=$INTERLEAVED_DATA_DIR/$i/train.parquet
