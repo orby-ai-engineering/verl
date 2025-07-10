@@ -84,6 +84,22 @@ def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
             # Cast the images column to the new Sequence type
             dataset = dataset.cast_column('images', Sequence(feature=Image(decode=True), length=-1))
     
+    # Standardize response message key order for subtask_direct_distill dataset
+    if 'data_source' in dataset.features and dataset['data_source'][0] == 'subtask_direct_distill':
+        logger.info("Standardizing response message key order")
+        
+        def reorder_response(example):
+            resp = example["response"]
+            example["response"] = [
+                {
+                    "content": resp['content'],
+                    "role": resp['role']
+                }
+            ]
+            return example
+        
+        dataset = dataset.map(reorder_response, desc="Standardizing response key order")
+    
     return dataset
 
 
