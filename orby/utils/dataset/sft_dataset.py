@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import copy
+import io
 import logging
 import os
 import re
@@ -25,6 +26,7 @@ import datasets
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig
+from PIL import Image
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer, ProcessorMixin
 
@@ -32,6 +34,68 @@ import verl.utils.torch_functional as verl_F
 from verl.utils.model import compute_position_id_with_mask
 
 logger = logging.getLogger(__name__)
+
+
+def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
+    """
+    Remove unnecessary fields from dataset to keep only those used during training.
+    Also standardizes image format across different datasets.
+    
+    Required fields for training:
+    - prompt: Used to build messages for chat template
+    - response: Used to extend messages for SFT training
+    - images: Used for multimodal processing
+    - videos: Used for multimodal processing  
+    - data_source: Used for logging
+    
+    Args:
+        dataset: The dataset to clean
+        
+    Returns:
+        Cleaned dataset with only necessary fields and standardized formats
+    """
+    # Define fields to keep
+    fields_to_keep = {
+        'prompt',
+        'response', 
+        'images',
+        'videos',
+        'data_source'
+    }
+    
+    # Get current features
+    current_features = set(dataset.features.keys())
+    
+    # Find fields to remove
+    fields_to_remove = current_features - fields_to_keep
+    
+    if fields_to_remove:
+        logger.info(f"Removing unnecessary fields: {fields_to_remove}")
+        dataset = dataset.remove_columns(list(fields_to_remove))
+    
+    # Standardize image format if needed
+    if 'images' in dataset.features:
+        # Check if images are in Dataset 2 format (list of dicts with bytes/path)
+        if isinstance(dataset.features['images'], datasets.Sequence) and \
+           hasattr(dataset.features['images'].feature, 'keys') and \
+           'bytes' in dataset.features['images'].feature:
+            logger.info("Converting image format Sequence[Image]")
+            
+            def convert_image_format(example):
+                if 'images' in example and example['images']:
+                    # Convert from list of dicts with bytes/path to list of Image objects
+                    converted_images = []
+                    for img_dict in example['images']:
+                        if 'bytes' in img_dict:
+                            # Create Image object from bytes
+                            img = Image.open(io.BytesIO(img_dict['bytes']))
+                            converted_images.append(img)
+                    example['images'] = converted_images
+                return example
+            
+            dataset = dataset.map(convert_image_format, desc="Converting image format")
+    
+    return dataset
 
 
 def collate_fn(data_list: list[dict]) -> dict:
@@ -121,6 +185,8 @@ class SFTDataset(Dataset):
             dataframe = datasets.load_dataset("parquet", data_files=parquet_file)[
                 "train"
             ]
+            # Clean the dataset to remove unnecessary fields
+            dataframe = clean_dataset_for_training(dataframe)
             dataframes.append(dataframe)
         self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
 
