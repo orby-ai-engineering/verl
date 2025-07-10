@@ -32,6 +32,7 @@ from transformers import PreTrainedTokenizer, ProcessorMixin
 
 import verl.utils.torch_functional as verl_F
 from verl.utils.model import compute_position_id_with_mask
+from datasets import Sequence, Image
 
 logger = logging.getLogger(__name__)
 
@@ -76,24 +77,12 @@ def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
     # Standardize image format if needed
     if 'images' in dataset.features:
         # Check if images are in Dataset 2 format (list of dicts with bytes/path)
-        if isinstance(dataset.features['images'], datasets.Sequence) and \
-           hasattr(dataset.features['images'].feature, 'keys') and \
-           'bytes' in dataset.features['images'].feature:
-            logger.info("Converting image format Sequence[Image]")
-            
-            def convert_image_format(example):
-                if 'images' in example and example['images']:
-                    # Convert from list of dicts with bytes/path to list of Image objects
-                    converted_images = []
-                    for img_dict in example['images']:
-                        if 'bytes' in img_dict:
-                            # Create Image object from bytes
-                            img = Image.open(io.BytesIO(img_dict['bytes']))
-                            converted_images.append(img)
-                    example['images'] = converted_images
-                return example
-            
-            dataset = dataset.map(convert_image_format, desc="Converting image format")
+        # Dataset 2 format: [{'bytes': binary, 'path': int32}]
+        # Dataset 1 format: Sequence(feature=Image(mode=None, decode=True))
+        if type(dataset.features['images']) == list:
+            logger.info("Converting image format from [{'bytes': binary, 'path': int32}] to Sequence[Image]")
+            # Cast the images column to the new Sequence type
+            dataset = dataset.cast_column('images', Sequence(feature=Image(decode=True), length=-1))
     
     return dataset
 
