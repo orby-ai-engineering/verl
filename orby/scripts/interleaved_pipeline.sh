@@ -40,49 +40,49 @@ find_max_step_checkpoint() {
 export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 
 # Run initial SFT step
-torchrun \
-    --nproc_per_node=8 \
-    --nnodes=$NUM_NODES \
-    --node_rank=$NODE_RANK \
-    --master_addr=$MASTER_ADDR \
-    --master_port=${MASTER_PORT:-29500} \
-    -m orby.trainer.fsdp_sft_trainer \
-    data.train_batch_size=$SFT_TRAIN_BATCH_SIZE \
-    data.micro_batch_size_per_gpu=2 \
-    data.train_files=$SFT_TRAIN_FILES \
-    data.val_files=$SFT_VAL_FILES \
-    +data.max_prompt_length=7680 \
-    +data.max_response_length=512 \
-    +data.filter_overlong_prompts=False \
-    data.truncation='error' \
-    +data.shuffle=True \
-    data.prompt_key=prompt \
-    data.response_key=response \
-    +data.image_key=images \
-    +processor.use_fast=true \
-    +processor.trust_remote_code=true \
-    optim.lr=1e-6 \
-    model.partial_pretrain=$MODEL_NAME \
-    model.fsdp_config.cpu_offload=true \
-    model.enable_gradient_checkpointing=true \
-    +model.enable_activation_offload=true \
-    model.fsdp_config.offload_params=true \
-    +model.fsdp_config.param_offload=true \
-    trainer.default_local_dir=$S3_INITIAL_SFT_CHECKPOINT_DIR \
-    trainer.total_training_steps=null \
-    trainer.project_name=$PROJECT_NAME \
-    trainer.experiment_name=${EXPERIMENT_NAME}_initial_sft \
-    trainer.logger=[console,wandb] \
-    trainer.default_hdfs_dir=null \
-    +trainer.val_interval=100 \
-    +trainer.save_interval=100 \
-    trainer.total_epochs=1 \
-    ulysses_sequence_parallel_size=1 \
-    use_remove_padding=false \
-    +model.fsdp_config.reshard_after_forward=true \
-    +model.use_remove_padding=true \
-    model.fsdp_config.wrap_policy.min_num_params=1000000 \
-    +model.fsdp_config.optimizer_offload=true
+# torchrun \
+#     --nproc_per_node=8 \
+#     --nnodes=$NUM_NODES \
+#     --node_rank=$NODE_RANK \
+#     --master_addr=$MASTER_ADDR \
+#     --master_port=${MASTER_PORT:-29500} \
+#     -m orby.trainer.fsdp_sft_trainer \
+#     data.train_batch_size=$SFT_TRAIN_BATCH_SIZE \
+#     data.micro_batch_size_per_gpu=2 \
+#     data.train_files=$SFT_TRAIN_FILES \
+#     data.val_files=$SFT_VAL_FILES \
+#     +data.max_prompt_length=7680 \
+#     +data.max_response_length=512 \
+#     +data.filter_overlong_prompts=False \
+#     data.truncation='error' \
+#     +data.shuffle=True \
+#     data.prompt_key=prompt \
+#     data.response_key=response \
+#     +data.image_key=images \
+#     +processor.use_fast=true \
+#     +processor.trust_remote_code=true \
+#     optim.lr=1e-6 \
+#     model.partial_pretrain=$MODEL_NAME \
+#     model.fsdp_config.cpu_offload=true \
+#     model.enable_gradient_checkpointing=true \
+#     +model.enable_activation_offload=true \
+#     model.fsdp_config.offload_params=true \
+#     +model.fsdp_config.param_offload=true \
+#     trainer.default_local_dir=$S3_INITIAL_SFT_CHECKPOINT_DIR \
+#     trainer.total_training_steps=null \
+#     trainer.project_name=$PROJECT_NAME \
+#     trainer.experiment_name=${EXPERIMENT_NAME}_initial_sft \
+#     trainer.logger=[console,wandb] \
+#     trainer.default_hdfs_dir=null \
+#     +trainer.val_interval=100 \
+#     +trainer.save_interval=100 \
+#     trainer.total_epochs=1 \
+#     ulysses_sequence_parallel_size=1 \
+#     use_remove_padding=false \
+#     +model.fsdp_config.reshard_after_forward=true \
+#     +model.use_remove_padding=true \
+#     model.fsdp_config.wrap_policy.min_num_params=1000000 \
+#     +model.fsdp_config.optimizer_offload=true
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
@@ -98,7 +98,7 @@ export STEP_DIR=$(echo $MAX_STEPS_CHECKPOINT | grep -o "global_step_[0-9]*")
 export LOCAL_SFT_CHECKPOINT=$INTERLEAVED_MODEL_DIR/initial_sft/$STEP_DIR
 aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 
-for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
+for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     PER_STEP_TRAIN_FILES=$INTERLEAVED_DATA_DIR/$i/train.parquet
     PER_STEP_VAL_FILES=$INTERLEAVED_DATA_DIR/$i/test.parquet
     LOCAL_OUTPUT_PARQUET=$INTERLEAVED_DATA_DIR/$i/train_rollout.parquet
@@ -110,6 +110,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
     # 1) Run rollout using the previous checkpoint
     echo "======Step $i: generating rollout data======"
     if [ "$NODE_RANK" = "0" ]; then
+        echo "======Step $i: submitting rollout job on node 0======"
         ray job submit --address="http://127.0.0.1:8265" \
         --runtime-env=verl/trainer/runtime_env.yaml \
         --no-wait \
@@ -141,11 +142,11 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
         aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $S3_OUTPUT_PARQUET
 
         # 2) Filtering step
-        echo "======Step $i: filtering rollout data======"
+        echo "======Step $i: submitting filtering job on node 0======"
         # Placeholder for filtering step
 
         # 3) Run GRPO step
-        echo "======Step $i: running GRPO======"
+        echo "======Step $i: submitting GRPO job on node 0======"
         export GRPO_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_grpo
         export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${GRPO_EXPERIMENT_NAME}/
         ray job submit --address="http://127.0.0.1:8265" \
@@ -218,15 +219,36 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
         exit 1
     fi
     
-    echo "======Step $i: merging GRPO checkpoint======"
-    python3 orby/scripts/model_merger.py merge \
-      --backend fsdp \
-      --hf_model_path Qwen/Qwen2.5-VL-7B-Instruct \
-      --local_dir $MAX_STEPS_CHECKPOINT/actor \
-      --target_dir $MAX_STEPS_CHECKPOINT/hf/
+    if [ "$NODE_RANK" = "0" ]; then
+        aws s3 ls $MAX_STEPS_CHECKPOINT/hf
+        if [ $? -eq 0 ]; then
+            echo "GRPO checkpoint is already available on S3: $MAX_STEPS_CHECKPOINT/hf"
+            break
+        fi
+        echo "======Step $i: merging GRPO checkpoint on node 0======"
+        python3 orby/scripts/model_merger.py merge \
+        --backend fsdp \
+        --hf_model_path Qwen/Qwen2.5-VL-7B-Instruct \
+        --local_dir $MAX_STEPS_CHECKPOINT/actor \
+        --target_dir $MAX_STEPS_CHECKPOINT/hf/
+    fi
 
     export STEP_DIR=$(echo $MAX_STEPS_CHECKPOINT | grep -o "global_step_[0-9]*")
     export LOCAL_GRPO_CHECKPOINT=$INTERLEAVED_MODEL_DIR/grpo_${i}/$STEP_DIR
+    while true; do
+        aws s3 ls $MAX_STEPS_CHECKPOINT/hf
+        if [ $? -eq 0 ]; then
+            echo "GRPO checkpoint is available on S3: $MAX_STEPS_CHECKPOINT/hf"
+            break
+        else
+            echo "Waiting for GRPO checkpoint to be available on S3..."
+            sleep 10
+        fi
+    done
+
+    # Wait for 60 seconds to make sure the checkpoint is fully uploaded
+    sleep 60
+
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
 
     # 4) Run SFT step
