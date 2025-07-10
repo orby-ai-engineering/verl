@@ -57,8 +57,8 @@ def visualize_parquet(parquet_file):
     extra_info = df.iloc[idx]['extra_info']
     print(f"\n--- EXTRA INFO ---")
     print(f"Question: {extra_info['question']}")
-    print(f"Answer: {extra_info['answer']}")
     print(f"Bounding Box: {extra_info['bounding_box']}")
+    print(f"Max Pixels: {extra_info['max_pixels']}")
     
     print("\n" + "="*60)
 
@@ -66,7 +66,7 @@ def visualize_parquet(parquet_file):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--parquet_file", 
-    default="~/data/executor-reward/train/part-00000-tid-3712964276653840281-af2210b2-e910-4427-aa16-9f2a2cfdae0a-844-1-c000.snappy.parquet",
+    default="~/data/uground/subtask/0.50k/train/train_part_0000.parquet",
     help="Path to parquet file to visualize")
     args = parser.parse_args()
     
