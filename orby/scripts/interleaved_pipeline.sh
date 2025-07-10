@@ -200,6 +200,20 @@ grpo_step() {
         trainer.total_epochs=1 $@ | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
 }
 
+function merge_checkpoint() {
+    local max_steps_checkpoint="$1"
+    aws s3 ls $max_steps_checkpoint/hf
+    if [ $? -eq 0 ]; then
+        echo "GRPO checkpoint is already available on S3: $max_steps_checkpoint/hf"
+        return 0
+    fi
+    python3 orby/scripts/model_merger.py merge \
+    --backend fsdp \
+    --hf_model_path Qwen/Qwen2.5-VL-7B-Instruct \
+    --local_dir $max_steps_checkpoint/actor \
+    --target_dir $max_steps_checkpoint/hf/
+}
+
 function wait_for_hf_checkpoint() {
     local max_steps_checkpoint="$1"
     while true; do
@@ -284,28 +298,20 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
 
     # Find the GRPO checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_GRPO_CHECKPOINT_DIR")
-    
+
     if [ "$NODE_RANK" = "0" ]; then
-        aws s3 ls $MAX_STEPS_CHECKPOINT/hf
-        if [ $? -eq 0 ]; then
-            echo "GRPO checkpoint is already available on S3: $MAX_STEPS_CHECKPOINT/hf"
-            break
-        fi
         echo "======Step $i: merging GRPO checkpoint on node 0======"
-        python3 orby/scripts/model_merger.py merge \
-        --backend fsdp \
-        --hf_model_path Qwen/Qwen2.5-VL-7B-Instruct \
-        --local_dir $MAX_STEPS_CHECKPOINT/actor \
-        --target_dir $MAX_STEPS_CHECKPOINT/hf/
+        merge_checkpoint $MAX_STEPS_CHECKPOINT
     fi
 
-    export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
-    export LOCAL_GRPO_CHECKPOINT=$INTERLEAVED_MODEL_DIR/grpo_${i}/$STEP_DIR
+    # Wait for the checkpoint on other nodes.
     wait_for_hf_checkpoint $MAX_STEPS_CHECKPOINT/hf
-
     # Wait for 60 seconds to make sure the checkpoint is fully uploaded
     sleep 60
 
+    # Download the merged checkpoint
+    export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
+    export LOCAL_GRPO_CHECKPOINT=$INTERLEAVED_MODEL_DIR/grpo_${i}/$STEP_DIR
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
 
     # 4) Run SFT step
