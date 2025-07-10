@@ -88,6 +88,17 @@ def save_in_chunks(
         if len(dataset_chunk) == 0:
             continue
 
+        # Remove width and height columns if they exist
+        columns_to_remove = []
+        if "width" in dataset_chunk.column_names:
+            columns_to_remove.append("width")
+        if "height" in dataset_chunk.column_names:
+            columns_to_remove.append("height")
+        
+        if columns_to_remove:
+            dataset_chunk = dataset_chunk.remove_columns(columns_to_remove)
+            print(f"Removed columns: {columns_to_remove}", flush=True)
+
         # Save the chunk as-is (remove the splitting logic)
         output_file = os.path.join(
             output_dir, f"{prefix}_part_{file_counter:04d}.parquet"
@@ -127,7 +138,7 @@ def process_in_chunks(streaming_dataset, chunk_size):
             processed_chunk = chunk_dataset.map(
                 function=process_in_chunks.map_fn,
                 with_indices=True,
-                num_proc=4,  # Reduced from 16 to manage memory
+                num_proc=1,  # Reduced from 16 to manage memory
             )
             processed_chunk = processed_chunk.cast_column(
                 "images", Sequence(ImageData())

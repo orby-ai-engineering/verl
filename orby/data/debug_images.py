@@ -217,10 +217,10 @@ def visualize_parquet(parquet_file):
 
     
 
-    for i in range(15):
+    for i in range(5):
         print(f"\nExample {i+1}:")
         print(f"Bounding box: {df.iloc[i]['extra_info']['bounding_box']}")
-        print(f"Image size: {df.iloc[i]['width']}x{df.iloc[i]['height']}")
+        # print(f"Image size: {df.iloc[i]['width']}x{df.iloc[i]['height']}")
         # Convert image bytes to PIL Image
         image_data = df.iloc[i]['images'][0]
         if isinstance(image_data, dict):
@@ -237,5 +237,5 @@ def visualize_parquet(parquet_file):
 
 
 if __name__ == "__main__":
-    parquet_file = "~/data/uground/subtask/0.50k/train/train_part_0000.parquet"
+    parquet_file = "/root/data/uground/subtask/0.10k/test/test_part_0000.parquet"
     visualize_parquet(parquet_file)
