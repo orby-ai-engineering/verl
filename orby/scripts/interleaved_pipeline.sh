@@ -12,7 +12,7 @@ find_max_step_checkpoint() {
     local checkpoint_dirs=$(aws s3 ls "$s3_dir" | grep "global_step_" | awk '{print $2}' | sed 's|/$||')
     
     if [ -z "$checkpoint_dirs" ]; then
-        echo "Error: No checkpoint directories found in $s3_dir"
+        echo "Error: No checkpoint directories found in $s3_dir" >&2
         return 1
     fi
     
@@ -30,12 +30,14 @@ find_max_step_checkpoint() {
     done
     
     if [ -z "$max_steps_checkpoint" ]; then
-        echo "Error: No valid checkpoint directories found with 'global_step_' pattern"
+        echo "Error: No valid checkpoint directories found with 'global_step_' pattern" >&2
         return 1
     fi
 
     echo "$s3_dir/$max_steps_checkpoint"
 }
+
+export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 
 # Run initial SFT step
 torchrun \
@@ -66,7 +68,7 @@ torchrun \
     +model.enable_activation_offload=true \
     model.fsdp_config.offload_params=true \
     +model.fsdp_config.param_offload=true \
-    trainer.default_local_dir=$S3_CHECKPOINT_DIR \
+    trainer.default_local_dir=$S3_INITIAL_SFT_CHECKPOINT_DIR \
     trainer.total_training_steps=null \
     trainer.project_name=$PROJECT_NAME \
     trainer.experiment_name=${EXPERIMENT_NAME}_initial_sft \
@@ -83,7 +85,6 @@ torchrun \
     +model.fsdp_config.optimizer_offload=true
 
 # Find and copy the initial SFT checkpoint with maximum steps
-export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${EXPERIMENT_NAME}_initial_sft/
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
 
 if [ $? -ne 0 ]; then
