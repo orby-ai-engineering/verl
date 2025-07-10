@@ -234,12 +234,12 @@ export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
 
 # Run initial SFT step
-# sft_step $INITIAL_SFT_EXPERIMENT_NAME \
-#     $MODEL_NAME \
-#     $SFT_TRAIN_BATCH_SIZE \
-#     $INITIAL_SFT_TRAIN_FILES \
-#     $INITIAL_SFT_VAL_FILES \
-#     $S3_INITIAL_SFT_CHECKPOINT_DIR $@
+sft_step $INITIAL_SFT_EXPERIMENT_NAME \
+    $MODEL_NAME \
+    $SFT_TRAIN_BATCH_SIZE \
+    $INITIAL_SFT_TRAIN_FILES \
+    $INITIAL_SFT_VAL_FILES \
+    $S3_INITIAL_SFT_CHECKPOINT_DIR $@
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
@@ -264,17 +264,17 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     echo "======Step $i: generating rollout data======"
     if [ "$NODE_RANK" = "0" ]; then
         echo "======Step $i: submitting rollout job on node 0======"
-        # generate_rollout_data $NUM_NODES \
-        # $PER_STEP_TRAIN_FILES \
-        # $PER_STEP_VAL_FILES \
-        # $LOCAL_OUTPUT_PARQUET \
-        # $LOCAL_SFT_CHECKPOINT \
-        # $TEMPERATURE \
-        # $N_SAMPLES \
-        # $ROLLOUT_BATCH_SIZE $@
+        generate_rollout_data $NUM_NODES \
+        $PER_STEP_TRAIN_FILES \
+        $PER_STEP_VAL_FILES \
+        $LOCAL_OUTPUT_PARQUET \
+        $LOCAL_SFT_CHECKPOINT \
+        $TEMPERATURE \
+        $N_SAMPLES \
+        $ROLLOUT_BATCH_SIZE $@
 
         # Upload dataset to S3
-        # aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
+        aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
 
         # 2) Filtering step
         echo "======Step $i: submitting filtering job on node 0======"
@@ -285,12 +285,12 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         export GRPO_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_grpo
         export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${GRPO_EXPERIMENT_NAME}/
 
-        # grpo_step $GRPO_EXPERIMENT_NAME \
-        # $PER_STEP_TRAIN_FILES \
-        # $PER_STEP_VAL_FILES \
-        # $LOCAL_SFT_CHECKPOINT \
-        # $GRPO_TRAIN_BATCH_SIZE \
-        # $S3_GRPO_CHECKPOINT_DIR $@
+        grpo_step $GRPO_EXPERIMENT_NAME \
+        $PER_STEP_TRAIN_FILES \
+        $PER_STEP_VAL_FILES \
+        $LOCAL_SFT_CHECKPOINT \
+        $GRPO_TRAIN_BATCH_SIZE \
+        $S3_GRPO_CHECKPOINT_DIR $@
 
         # Stop ray cluster
         ray stop
