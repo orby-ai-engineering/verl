@@ -78,7 +78,7 @@ def to_rgb(pil_image: Image.Image) -> Image.Image:
     else:
         return pil_image.convert("RGB")
 
-def get_resized_hw(image):
+def get_resized_hw(image, max_pixels=None):
     """
     Get the resized width and height of the image.
     """
@@ -116,6 +116,17 @@ def save_in_chunks(
     for dataset_chunk in all_data:
         if len(dataset_chunk) == 0:
             continue
+        
+         # Remove width and height columns if they exist
+        columns_to_remove = []
+        if "width" in dataset_chunk.column_names:
+            columns_to_remove.append("width")
+        if "height" in dataset_chunk.column_names:
+            columns_to_remove.append("height")
+
+        if columns_to_remove:
+            dataset_chunk = dataset_chunk.remove_columns(columns_to_remove)
+            print(f"Removed columns: {columns_to_remove}", flush=True)
 
         # Save the chunk as-is (remove the splitting logic)
         output_file = os.path.join(
