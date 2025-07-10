@@ -70,17 +70,31 @@ MODEL_PATH = "Qwen/Qwen2.5-VL-7B-Instruct"
 PROCESSOR = AutoProcessor.from_pretrained(MODEL_PATH, use_fast=True)
 
 
-def get_resized_wh(image):
+def to_rgb(pil_image: Image.Image) -> Image.Image:
+    if pil_image.mode == 'RGBA':
+        white_background = Image.new("RGB", pil_image.size, (255, 255, 255))
+        white_background.paste(pil_image, mask=pil_image.split()[3])  # Use alpha channel as mask
+        return white_background
+    else:
+        return pil_image.convert("RGB")
+
+def get_resized_hw(image):
     """
     Get the resized width and height of the image.
     """
+
+     # if max_pixels is not set, use the max pixels of the image processor
+    if not max_pixels:
+        print("Max pixels not set, using the max pixels of the image processor", flush=True)
+        max_pixels = PROCESSOR.image_processor.max_pixels
+    
     resized_height, resized_width = smart_resize(
-        image.height,
-        image.width,
+        height=image.height,
+        width=image.width,
         factor=PROCESSOR.image_processor.patch_size
         * PROCESSOR.image_processor.merge_size,
         min_pixels=PROCESSOR.image_processor.min_pixels,
-        max_pixels=PROCESSOR.image_processor.max_pixels,
+        max_pixels=max_pixels,
     )
 
     return resized_height, resized_width
@@ -245,6 +259,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--image_dir", default="/root/data/os_atlas/desktop_domain/merged_images/", help="Path to the directory containing images"
     )
+    parser.add_argument(
+        "--max_pixels",
+        type=int,
+        default=None,
+        help="Maximum number of pixels in the image",
+    )
 
 
     args = parser.parse_args()
@@ -274,7 +294,10 @@ if __name__ == "__main__":
             # Get image and resize ratios
             if isinstance(image, bytes):
                 image = Image.open(io.BytesIO(image))
-            resized_height, resized_width = get_resized_wh(image)
+            # Convert image to RGB if it's RGBA
+            image = to_rgb(image)
+            # Get the resized width and height of the image.
+            resized_height, resized_width = get_resized_hw(image, args.max_pixels)
 
             
             bbox = [
@@ -309,6 +332,7 @@ if __name__ == "__main__":
                     "index": idx,
                     "question": instruction,
                     "bounding_box": bbox,
+                    "max_pixels": args.max_pixels,
                 },
                 "response": answer
             }
