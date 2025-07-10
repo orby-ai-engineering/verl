@@ -34,7 +34,7 @@ find_max_step_checkpoint() {
         return 1
     fi
 
-    echo "$s3_dir/$max_steps_checkpoint"
+    echo "${s3_dir}${max_steps_checkpoint}"
 }
 
 export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
@@ -96,8 +96,7 @@ fi
 # Copy the initial SFT checkpoint with maximum steps
 export STEP_DIR=$(echo $MAX_STEPS_CHECKPOINT | grep -o "global_step_[0-9]*")
 export LOCAL_SFT_CHECKPOINT=$INTERLEAVED_MODEL_DIR/initial_sft/$STEP_DIR
-aws s3 cp --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
-ls -lh $LOCAL_SFT_CHECKPOINT
+aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 
 for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
     PER_STEP_TRAIN_FILES=$INTERLEAVED_DATA_DIR/$i/train.parquet
