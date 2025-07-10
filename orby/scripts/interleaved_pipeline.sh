@@ -247,14 +247,14 @@ echo "Found initial SFT checkpoint: $MAX_STEPS_CHECKPOINT"
 
 # Copy the initial SFT checkpoint with maximum steps
 export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
-export LOCAL_SFT_CHECKPOINT=$INTERLEAVED_MODEL_DIR/initial_sft/$STEP_DIR
+export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/initial_sft/$STEP_DIR
 aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 
 # Main loop
 for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
-    PER_STEP_TRAIN_FILES=$INTERLEAVED_DATA_DIR/$i/train.parquet
-    PER_STEP_VAL_FILES=$INTERLEAVED_DATA_DIR/$i/test.parquet
-    LOCAL_OUTPUT_PARQUET=$INTERLEAVED_DATA_DIR/$i/train_rollout.parquet
+    PER_STEP_TRAIN_FILES=$LOCAL_DATA_DIR/$i/train.parquet
+    PER_STEP_VAL_FILES=$LOCAL_DATA_DIR/$i/test.parquet
+    LOCAL_OUTPUT_PARQUET=$LOCAL_DATA_DIR/$i/train_rollout.parquet
     ROLLOUT_OUTPUT_PARQUET=$ROLLOUT_OUTPUT_DIR/$i/train_rollout.parquet
 
     # Start ray cluster and wait for all nodes
@@ -311,7 +311,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
 
     # Download the merged checkpoint
     export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
-    export LOCAL_GRPO_CHECKPOINT=$INTERLEAVED_MODEL_DIR/grpo_${i}/$STEP_DIR
+    export LOCAL_GRPO_CHECKPOINT=$LOCAL_MODEL_DIR/grpo_${i}/$STEP_DIR
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
 
     # 4) Run SFT step
@@ -328,6 +328,6 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # Find and copy the SFT checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$SFT_CHECKPOINT_DIR")
     export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
-    export LOCAL_SFT_CHECKPOINT=$INTERLEAVED_MODEL_DIR/sft_${i}/$STEP_DIR
+    export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/sft_${i}/$STEP_DIR
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 done
