@@ -50,7 +50,7 @@ def to_rgb(pil_image: Image.Image) -> Image.Image:
     else:
         return pil_image.convert("RGB")
 
-def get_resized_wh(image, max_pixels=None):
+def get_resized_hw(image, max_pixels=None):
     """
     Get the resized width and height of the image.
     """
@@ -138,7 +138,7 @@ def process_in_chunks(streaming_dataset, chunk_size):
             processed_chunk = chunk_dataset.map(
                 function=process_in_chunks.map_fn,
                 with_indices=True,
-                num_proc=1,  # Reduced from 16 to manage memory
+                num_proc=4,  # Reduced from 16 to manage memory
             )
             processed_chunk = processed_chunk.cast_column(
                 "images", Sequence(ImageData())
@@ -242,14 +242,7 @@ if __name__ == "__main__":
             # Convert image to RGB if it's RGBA
             image = to_rgb(image)
             # Get the resized width and height of the image.
-            resized_height, resized_width = get_resized_wh(image, args.max_pixels)
-            print("-" * 80)
-            print(f"original image size: {image.size}", flush=True)
-            print('(resize_width, resize_height)', resized_width, resized_height)
-            image = image.resize((resized_width, resized_height))
-            print(f"resized image size: {image.size}", flush=True)
-            print(f"final pixels: {image.size[0] * image.size[1]}")
-            print("-" * 80)
+            resized_height, resized_width = get_resized_hw(image, args.max_pixels)
             # Adjust bbox based on resize ratios. Uground labels range from 
             # [0, 999]
             bbox = [
