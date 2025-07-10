@@ -47,7 +47,7 @@ export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 #     --master_addr=$MASTER_ADDR \
 #     --master_port=${MASTER_PORT:-29500} \
 #     -m orby.trainer.fsdp_sft_trainer \
-#     data.train_batch_size=$TRAIN_BATCH_SIZE \
+#     data.train_batch_size=$SFT_TRAIN_BATCH_SIZE \
 #     data.micro_batch_size_per_gpu=2 \
 #     data.train_files=$SFT_TRAIN_FILES \
 #     data.val_files=$SFT_VAL_FILES \
@@ -159,7 +159,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
                 algorithm.adv_estimator=grpo \
                 data.train_files=$PER_STEP_TRAIN_FILES \
                 data.val_files=$PER_STEP_VAL_FILES \
-                data.train_batch_size=$TRAIN_BATCH_SIZE \
+                data.train_batch_size=$GRPO_TRAIN_BATCH_SIZE \
                 data.max_prompt_length=7680 \
                 data.max_response_length=512 \
                 data.filter_overlong_prompts=False \
@@ -169,7 +169,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
                 actor_rollout_ref.model.path=$LOCAL_SFT_CHECKPOINT \
                 actor_rollout_ref.actor.optim.lr=1e-6 \
                 actor_rollout_ref.model.use_remove_padding=True \
-                actor_rollout_ref.actor.ppo_mini_batch_size=$TRAIN_BATCH_SIZE \
+                actor_rollout_ref.actor.ppo_mini_batch_size=$GRPO_TRAIN_BATCH_SIZE \
                 actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
                 actor_rollout_ref.actor.ppo_max_token_len_per_gpu=8192 \
                 actor_rollout_ref.actor.use_kl_loss=True \
@@ -239,7 +239,7 @@ for i in $(seq 1 $INTERLEAVED_STEP_NUM); do
         --master_addr=$MASTER_ADDR \
         --master_port=${MASTER_PORT:-29500} \
         -m orby.trainer.fsdp_sft_trainer \
-        data.train_batch_size=$TRAIN_BATCH_SIZE \
+        data.train_batch_size=$SFT_TRAIN_BATCH_SIZE \
         data.micro_batch_size_per_gpu=2 \
         data.train_files=$PER_STEP_TRAIN_FILES \
         data.val_files=$PER_STEP_VAL_FILES \
