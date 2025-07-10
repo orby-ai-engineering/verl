@@ -25,8 +25,8 @@ command: |
   export TRAIN_BATCH_SIZE=32
   export MICRO_BATCH_SIZE_PER_GPU=2 
   export FILTER_OVERLONG_PROMPTS_WORKERS=24 # (24 seems to work well for OSAtlas + Uground data)
-  export TRAIN_DIR=s3://orby-osu-va/rishu_test/1kpixel/50k/train/
-  export TEST_DIR=s3://orby-osu-va/rishu_test/1kpixel/50k/test/
+  export TRAIN_DIR=s3://orby-osu-va/rishu_test/1kpixel/train/
+  export TEST_DIR=s3://orby-osu-va/rishu_test/1kpixel/test/
   export MAX_PROMPT_LENGTH=7100
   
   cd /workspace/verl
