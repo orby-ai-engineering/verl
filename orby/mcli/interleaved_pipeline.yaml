@@ -25,6 +25,7 @@ command: |
   # This should contain the data for all steps. For example,
   # if INTERLEAVED_STEP_NUM=2, then it should contain:
   # 0/train.parquet, 0/test.parquet, 1/train.parquet, 1/test.parquet
+  # Example: https://us-east-1.console.aws.amazon.com/s3/buckets/orby-llm?prefix=interleaved/data/debug/&region=us-east-1&bucketType=general
   export INTERLEAVED_DATA_DIR=s3://orby-llm/interleaved/data/debug
 
   # Set data paths
