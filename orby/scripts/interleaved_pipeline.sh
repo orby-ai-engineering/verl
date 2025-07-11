@@ -133,11 +133,11 @@ sft_step() {
 
 grpo_step() {
     local experiment_name="$1"
-    local train_files="$4"
-    local val_files="$5"
-    local checkpoint="$6"
-    local grpo_train_batch_size="$7"
-    local s3_checkpoint_dir="$8"
+    local train_files="$2"
+    local val_files="$3"
+    local checkpoint="$4"
+    local grpo_train_batch_size="$5"
+    local s3_checkpoint_dir="$6"
 
     ray job submit --address="http://127.0.0.1:8265" \
     --runtime-env=verl/trainer/runtime_env.yaml \
