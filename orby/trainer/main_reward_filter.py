@@ -77,6 +77,7 @@ def filter_parquet_chunks(
     
     # Initialize parquet writer
     writer = None
+    writer_schema = None
     total_rows = 0
     filtered_rows = 0
     
@@ -142,6 +143,7 @@ def filter_parquet_chunks(
                 if writer is None:
                     os.makedirs(os.path.dirname(output_path), exist_ok=True)
                     writer = pq.ParquetWriter(output_path, schema=filtered_table.schema)
+                    writer_schema = filtered_table.schema
                 
                 # Write filtered chunk
                 writer.write_table(filtered_table)
@@ -181,9 +183,16 @@ def filter_parquet_chunks(
                         writer = pq.ParquetWriter(output_path, schema=balancing_table.schema)
                         writer.write_table(balancing_table)
                     else:
-                        # Writer exists, try to write with compatible schema
+                        # Writer exists, try to write with schema consistency
                         try:
                             balancing_table = pa.Table.from_pandas(balancing_sample)
+                            
+                            # Check if we need to cast to match the existing schema
+                            if writer_schema is not None and not balancing_table.schema.equals(writer_schema):
+                                print("Schema mismatch detected, attempting to cast balancing data to match existing schema...")
+                                # Try to cast the balancing table to match the writer schema
+                                balancing_table = balancing_table.cast(writer_schema)
+                                print("Successfully cast balancing data to match existing schema")
                             writer.write_table(balancing_table)
                         except Exception as e:
                             print(f"Warning: Could not write balancing data due to schema mismatch: {e}")
