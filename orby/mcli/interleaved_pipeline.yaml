@@ -45,12 +45,17 @@ command: |
   export GRPO_TRAIN_BATCH_SIZE=64
   export ROLLOUT_BATCH_SIZE=1024
 
+  # Set SFT parameters
+  export ATTENTION_DROPOUT=0.0
+  export SFT_LR=1e-5
+
   # Set GRPO parameters
   export REWARD_FN=training_reward_func
   export REWARD_FILE=orby/reward/subtask.py
   export COORDINATES_METRIC="gaussian"
   export COORDINATES_GAUSSIAN_SIGMA=2
   export COORDINATES_PIXEL_SQUARE_SIZE=10
+  export GRPO_LR=1e-6
 
   # Set rollout parameters
   export ROLLOUT_OUTPUT_DIR=s3://orby-llm/interleaved/rollout/$EXPERIMENT_NAME
