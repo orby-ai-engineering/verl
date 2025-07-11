@@ -85,6 +85,8 @@ sft_step() {
     local train_files="$4"
     local val_files="$5"
     local checkpoint_dir="$6"
+    local sft_lr="$7"
+    local attention_dropout="$8"
 
     torchrun \
         --nproc_per_node=8 \
@@ -107,7 +109,8 @@ sft_step() {
         +data.image_key=images \
         +processor.use_fast=true \
         +processor.trust_remote_code=true \
-        optim.lr=1e-5 \
+        optim.lr=$sft_lr \
+        +model.qwen_attention_dropout=$attention_dropout \
         model.partial_pretrain=$model_name \
         model.fsdp_config.cpu_offload=true \
         model.enable_gradient_checkpointing=true \
@@ -138,6 +141,7 @@ grpo_step() {
     local checkpoint="$4"
     local grpo_train_batch_size="$5"
     local s3_checkpoint_dir="$6"
+    local grpo_lr="$7"
 
     ray job submit --address="http://127.0.0.1:8265" \
     --runtime-env=verl/trainer/runtime_env.yaml \
@@ -160,7 +164,7 @@ grpo_step() {
         data.image_key=images \
         data.shuffle=True \
         actor_rollout_ref.model.path=$checkpoint \
-        actor_rollout_ref.actor.optim.lr=1e-5 \
+        actor_rollout_ref.actor.optim.lr=$grpo_lr \
         actor_rollout_ref.model.use_remove_padding=True \
         actor_rollout_ref.actor.ppo_mini_batch_size=$grpo_train_batch_size \
         actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
@@ -237,8 +241,10 @@ sft_step $INITIAL_SFT_EXPERIMENT_NAME \
     $MODEL_NAME \
     $SFT_TRAIN_BATCH_SIZE \
     $INITIAL_SFT_TRAIN_FILES \
-    $INITIAL_SFT_VAL_FILES \
-    $S3_INITIAL_SFT_CHECKPOINT_DIR
+    $SHARED_VAL_FILES \
+    $S3_INITIAL_SFT_CHECKPOINT_DIR \
+    $SFT_LR \
+    $ATTENTION_DROPOUT
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
@@ -252,7 +258,8 @@ aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 # Main loop
 for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     PER_STEP_TRAIN_FILES=$LOCAL_DATA_DIR/$i/train.parquet
-    PER_STEP_VAL_FILES=$LOCAL_DATA_DIR/$i/test.parquet
+    # We use shared validation files for all steps.
+    # PER_STEP_VAL_FILES=$LOCAL_DATA_DIR/$i/test.parquet
     LOCAL_OUTPUT_PARQUET=$LOCAL_DATA_DIR/$i/train_rollout.parquet
     ROLLOUT_OUTPUT_PARQUET=$ROLLOUT_OUTPUT_DIR/$i/train_rollout.parquet
 
@@ -286,10 +293,11 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         echo "======Step $i: submitting GRPO job on node 0======"
         grpo_step $GRPO_EXPERIMENT_NAME \
         $PER_STEP_TRAIN_FILES \
-        $PER_STEP_VAL_FILES \
+        $SHARED_VAL_FILES \
         $LOCAL_SFT_CHECKPOINT \
         $GRPO_TRAIN_BATCH_SIZE \
-        $S3_GRPO_CHECKPOINT_DIR
+        $S3_GRPO_CHECKPOINT_DIR \
+        $GRPO_LR
 
         # Stop ray cluster
         ray stop
@@ -321,8 +329,10 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     $LOCAL_GRPO_CHECKPOINT \
     $SFT_TRAIN_BATCH_SIZE \
     $PER_STEP_TRAIN_FILES \
-    $PER_STEP_VAL_FILES \
-    $SFT_CHECKPOINT_DIR
+    $SHARED_VAL_FILES \
+    $SFT_CHECKPOINT_DIR \
+    $SFT_LR \
+    $ATTENTION_DROPOUT
 
     # Find and copy the SFT checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$SFT_CHECKPOINT_DIR")
