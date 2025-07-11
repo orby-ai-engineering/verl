@@ -75,7 +75,7 @@ generate_rollout_data() {
             rollout.max_num_batched_tokens=65536 \
             rollout.n=$n_samples \
             +rollout.remove_multimodal_data_from_rollout=True \
-            +rollout.limit_images=3 $@ | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
+            +rollout.limit_images=3 | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
 }
 
 sft_step() {
@@ -196,7 +196,7 @@ grpo_step() {
         trainer.save_freq=100 \
         trainer.test_freq=100 \
         trainer.s3_checkpoint_dir=$s3_checkpoint_dir \
-        trainer.total_epochs=1 $@ | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
+        trainer.total_epochs=1 | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
 }
 
 function merge_checkpoint() {
@@ -238,7 +238,7 @@ export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
 #     $SFT_TRAIN_BATCH_SIZE \
 #     $INITIAL_SFT_TRAIN_FILES \
 #     $INITIAL_SFT_VAL_FILES \
-#     $S3_INITIAL_SFT_CHECKPOINT_DIR $@
+#     $S3_INITIAL_SFT_CHECKPOINT_DIR
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
@@ -273,7 +273,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         $LOCAL_SFT_CHECKPOINT \
         $TEMPERATURE \
         $N_SAMPLES \
-        $ROLLOUT_BATCH_SIZE $@
+        $ROLLOUT_BATCH_SIZE
 
         # Upload dataset to S3
         aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
@@ -289,7 +289,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         $PER_STEP_VAL_FILES \
         $LOCAL_SFT_CHECKPOINT \
         $GRPO_TRAIN_BATCH_SIZE \
-        $S3_GRPO_CHECKPOINT_DIR $@
+        $S3_GRPO_CHECKPOINT_DIR
 
         # Stop ray cluster
         ray stop
@@ -322,7 +322,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     $SFT_TRAIN_BATCH_SIZE \
     $PER_STEP_TRAIN_FILES \
     $PER_STEP_VAL_FILES \
-    $SFT_CHECKPOINT_DIR $@
+    $SFT_CHECKPOINT_DIR
 
     # Find and copy the SFT checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$SFT_CHECKPOINT_DIR")
