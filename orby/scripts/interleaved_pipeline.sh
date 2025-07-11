@@ -107,7 +107,7 @@ sft_step() {
         +data.image_key=images \
         +processor.use_fast=true \
         +processor.trust_remote_code=true \
-        optim.lr=1e-6 \
+        optim.lr=1e-5 \
         model.partial_pretrain=$model_name \
         model.fsdp_config.cpu_offload=true \
         model.enable_gradient_checkpointing=true \
@@ -160,7 +160,7 @@ grpo_step() {
         data.image_key=images \
         data.shuffle=True \
         actor_rollout_ref.model.path=$checkpoint \
-        actor_rollout_ref.actor.optim.lr=1e-6 \
+        actor_rollout_ref.actor.optim.lr=1e-5 \
         actor_rollout_ref.model.use_remove_padding=True \
         actor_rollout_ref.actor.ppo_mini_batch_size=$grpo_train_batch_size \
         actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
