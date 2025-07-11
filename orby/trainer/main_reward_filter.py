@@ -162,7 +162,7 @@ def filter_parquet_chunks(
     
     # Write shuffled data to output
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    shuffled_data.to_parquet(output_path, index=False)
+    shuffled_data.to_parquet(output_path, index=False, row_group_size=512)
     filtered_rows = len(shuffled_data)
     print(f"Filtering complete: {filtered_rows}/{total_rows} rows kept")
 
