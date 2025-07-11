@@ -12,17 +12,14 @@ def parse_filter_bounds(bounds_str):
     # If it's already a list/tuple, return it as tuple
     if isinstance(bounds_str, (list, tuple)):
         return tuple(bounds_str)
-    
+
     # If it's a string, try to parse it
-    try:
+    if isinstance(bounds_str, str):
         bounds = ast.literal_eval(bounds_str)
         return tuple(bounds)
-    except (ValueError, SyntaxError):
-        # If ast.literal_eval fails, try to handle common cases
-        # Remove quotes if present and try again
-        cleaned = bounds_str.strip().strip('"').strip("'")
-        bounds = ast.literal_eval(cleaned)
-        return tuple(bounds)
+
+    # If it is a ListConfig
+    return (bounds_str[0], bounds_str[1])
 
 
 def filter_parquet_chunks(
