@@ -264,8 +264,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     echo "======Step $i: generating rollout data======"
     if [ "$NODE_RANK" = "0" ]; then
         echo "======Step $i: submitting rollout job on node 0======"
-        generate_rollout_data $NUM_NODES \
-        $PER_STEP_TRAIN_FILES \
+        generate_rollout_data $PER_STEP_TRAIN_FILES \
         $PER_STEP_VAL_FILES \
         $LOCAL_OUTPUT_PARQUET \
         $LOCAL_SFT_CHECKPOINT \
