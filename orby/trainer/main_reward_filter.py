@@ -184,27 +184,23 @@ def filter_parquet_chunks(
                         writer.write_table(balancing_table)
                     else:
                         # Writer exists, try to write with schema consistency
-                        try:
-                            balancing_table = pa.Table.from_pandas(balancing_sample)
-                            
-                            # Check if we need to cast to match the existing schema
-                            if writer_schema is not None and not balancing_table.schema.equals(writer_schema):
-                                print("Schema mismatch detected, attempting to cast balancing data to match existing schema...")
-                                # Try to cast the balancing table to match the writer schema
-                                balancing_table = balancing_table.cast(writer_schema)
-                                print("Successfully cast balancing data to match existing schema")
-                            writer.write_table(balancing_table)
-                        except Exception as e:
-                            print(f"Warning: Could not write balancing data due to schema mismatch: {e}")
-                    
+                        balancing_table = pa.Table.from_pandas(balancing_sample)
+                        # Check if we need to cast to match the existing schema
+                        if writer_schema is not None and not balancing_table.schema.equals(writer_schema):
+                            print("Schema mismatch detected, attempting to cast balancing data to match existing schema...")
+                            # Try to cast the balancing table to match the writer schema
+                            balancing_table = balancing_table.cast(writer_schema)
+                            print("Successfully cast balancing data to match existing schema")
+                        writer.write_table(balancing_table)
+
                     filtered_rows += len(balancing_sample)
             else:
                 print(f"No balancing needed: should_end true={should_end_true_count}, false={should_end_false_count}")
-    
+
     finally:
         if writer:
             writer.close()
-    
+
     print(f"Filtering complete: {filtered_rows}/{total_rows} rows kept")
     return filtered_rows
 
