@@ -47,27 +47,6 @@ def extract_should_end_values(df, should_end_column):
     return should_end_values
 
 
-def cast_table_to_schema(table: pa.Table, target_schema: pa.Schema) -> pa.Table:
-    casted_columns = []
-    
-    for field in target_schema:
-        name = field.name
-        target_type = field.type
-        
-        if name in table.column_names:
-            col = table[name]
-            # Cast only if needed
-            if not pa.types.is_same_type(col.type, target_type):
-                col = col.cast(target_type)
-        else:
-            # Fill with nulls if column is missing
-            col = pa.array([None] * len(table), type=target_type)
-
-        casted_columns.append(col)
-    
-    return pa.table(casted_columns, schema=target_schema)
-
-
 def filter_parquet_chunks(
     input_path,
     output_path,
@@ -81,127 +60,111 @@ def filter_parquet_chunks(
     # Read parquet file info
     parquet_file = pq.ParquetFile(input_path)
     
-    # Initialize parquet writer
-    writer = None
-    writer_schema = None
+    # Initialize collections for all data
+    all_filtered_data = []
     total_rows = 0
-    filtered_rows = 0
     
     # For balancing logic
     should_end_true_count = 0
     should_end_false_count = 0
     balancing_data = []
-    
-    try:
-        # First pass: Filter data and collect balancing statistics
-        for batch in parquet_file.iter_batches(batch_size=chunk_size):
-            # Convert to pandas for easier filtering
-            df_chunk = batch.to_pandas()
-            
-            if total_rows == 0:
-                # Check for reward_score column
-                if reward_score_column not in df_chunk.columns:
-                    raise ValueError(f"No '{reward_score_column}' column found in dataset. Make sure main_eval was run with save_scores=True")
-                
-                # Check for nested should_end column if balancing is enabled
-                if balance_should_end and should_end_column:
-                    # For nested columns, check if the root column exists
-                    root_column = should_end_column.split('.')[0]
-                    if root_column not in df_chunk.columns:
-                        print(f"Warning: root column '{root_column}' for should_end not found. Skipping balancing.")
-                        balance_should_end = False
-                
-                print(f"Filtering based on column: {reward_score_column}")
-                if balance_should_end:
-                    print(f"Balancing enabled using nested column: {should_end_column}")
-            
-            # Filter chunk
-            lower_bound, upper_bound = filter_bounds
-            mask = (df_chunk[reward_score_column] >= lower_bound) & (df_chunk[reward_score_column] <= upper_bound)
-            filtered_chunk = df_chunk[mask]
-            
-            # Count should_end statistics for balancing
-            if balance_should_end and should_end_column:
-                # Extract should_end values from nested structure
-                filtered_should_end_values = extract_should_end_values(filtered_chunk, should_end_column)
-                should_end_true_in_chunk = sum(1 for val in filtered_should_end_values if val == "true")
-                should_end_false_in_chunk = sum(1 for val in filtered_should_end_values if val == "false")
-                should_end_true_count += should_end_true_in_chunk
-                should_end_false_count += should_end_false_in_chunk
-                
-                # Collect potential balancing data (should_end == false that didn't meet filter criteria)
-                chunk_should_end_values = extract_should_end_values(df_chunk, should_end_column)
-                balancing_mask = []
-                for i, (meets_filter, should_end_val) in enumerate(zip(mask, chunk_should_end_values)):
-                    balancing_mask.append(should_end_val == "false" and not meets_filter)
-                
-                balancing_chunk = df_chunk[balancing_mask]
-                if len(balancing_chunk) > 0:
-                    balancing_data.append(balancing_chunk)
-            
-            if len(filtered_chunk) > 0:
-                # Reset index to avoid issues with PyArrow
-                filtered_chunk = filtered_chunk.reset_index(drop=True)
-                # Convert back to arrow table
-                filtered_table = pa.Table.from_pandas(filtered_chunk)
-                
-                # Initialize writer on first write
-                if writer is None:
-                    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                    writer = pq.ParquetWriter(output_path, schema=filtered_table.schema)
-                    writer_schema = filtered_table.schema
-                
-                # Write filtered chunk
-                writer.write_table(filtered_table)
-                filtered_rows += len(filtered_chunk)
-            
-            total_rows += len(df_chunk)
-            
-            if total_rows % 5000 == 0:
-                print(f"Processed {total_rows} rows, filtered {filtered_rows} rows")
+
+    # First pass: Filter data and collect balancing statistics
+    for batch in parquet_file.iter_batches(batch_size=chunk_size):
+        # Convert to pandas for easier filtering
+        df_chunk = batch.to_pandas()
         
-        # Add balancing data if needed
-        if balance_should_end and should_end_column and balancing_data:
-            needed_false_count = should_end_true_count - should_end_false_count
-            if needed_false_count > 0:
-                print(f"Balancing dataset: should_end true={should_end_true_count}, false={should_end_false_count}")
-                print(f"Adding {needed_false_count} should_end=false rows for balance")
-                
-                # Concatenate all balancing data
-                all_balancing_data = pd.concat(balancing_data, ignore_index=True)
-                
-                # Sample the needed amount (or all if we don't have enough)
-                if len(all_balancing_data) >= needed_false_count:
-                    balancing_sample = all_balancing_data.sample(n=needed_false_count, random_state=42)
-                else:
-                    balancing_sample = all_balancing_data
-                    print(f"Warning: Only {len(all_balancing_data)} balancing rows available, using all")
-                
-                # Write balancing data
-                if len(balancing_sample) > 0:
-                    # Reset index to avoid issues with PyArrow
-                    balancing_sample = balancing_sample.reset_index(drop=True)
-
-                    # Writer exists, try to write with schema consistency
-                    balancing_table = pa.Table.from_pandas(balancing_sample)
-                    # Check if we need to cast to match the existing schema
-                    if writer_schema is not None and not balancing_table.schema.equals(writer_schema):
-                        print("Schema mismatch detected, attempting to cast balancing data to match existing schema...")
-                        # Try to cast the balancing table to match the writer schema
-                        balancing_table = cast_table_to_schema(balancing_table, writer_schema)
-                        print("Successfully cast balancing data to match existing schema")
-                    writer.write_table(balancing_table)
-
-                    filtered_rows += len(balancing_sample)
+        if total_rows == 0:
+            # Check for reward_score column
+            if reward_score_column not in df_chunk.columns:
+                raise ValueError(f"No '{reward_score_column}' column found in dataset. Make sure main_eval was run with save_scores=True")
+            
+            # Check for nested should_end column if balancing is enabled
+            if balance_should_end and should_end_column:
+                # For nested columns, check if the root column exists
+                root_column = should_end_column.split('.')[0]
+                if root_column not in df_chunk.columns:
+                    print(f"Warning: root column '{root_column}' for should_end not found. Skipping balancing.")
+                    balance_should_end = False
+            
+            print(f"Filtering based on column: {reward_score_column}")
+            if balance_should_end:
+                print(f"Balancing enabled using nested column: {should_end_column}")
+        
+        # Filter chunk
+        lower_bound, upper_bound = filter_bounds
+        mask = (df_chunk[reward_score_column] >= lower_bound) & (df_chunk[reward_score_column] <= upper_bound)
+        filtered_chunk = df_chunk[mask]
+        
+        # Count should_end statistics for balancing
+        if balance_should_end and should_end_column:
+            # Extract should_end values from nested structure
+            filtered_should_end_values = extract_should_end_values(filtered_chunk, should_end_column)
+            should_end_true_in_chunk = sum(1 for val in filtered_should_end_values if val == "true")
+            should_end_false_in_chunk = sum(1 for val in filtered_should_end_values if val == "false")
+            should_end_true_count += should_end_true_in_chunk
+            should_end_false_count += should_end_false_in_chunk
+            
+            # Collect potential balancing data (should_end == false that didn't meet filter criteria)
+            chunk_should_end_values = extract_should_end_values(df_chunk, should_end_column)
+            balancing_mask = []
+            for i, (meets_filter, should_end_val) in enumerate(zip(mask, chunk_should_end_values)):
+                balancing_mask.append(should_end_val == "false" and not meets_filter)
+            
+            balancing_chunk = df_chunk[balancing_mask]
+            if len(balancing_chunk) > 0:
+                balancing_data.append(balancing_chunk)
+        
+        # Collect filtered data instead of writing immediately
+        if len(filtered_chunk) > 0:
+            all_filtered_data.append(filtered_chunk.reset_index(drop=True))
+        
+        total_rows += len(df_chunk)
+        
+        if total_rows % 5000 == 0:
+            print(f"Processed {total_rows} rows, collected {sum(len(df) for df in all_filtered_data)} filtered rows")
+    
+    # Prepare final dataset with balancing
+    final_datasets = []
+    
+    # Add all filtered data
+    if all_filtered_data:
+        final_datasets.extend(all_filtered_data)
+    
+    # Add balancing data if needed
+    if balance_should_end and should_end_column and balancing_data:
+        needed_false_count = should_end_true_count - should_end_false_count
+        if needed_false_count > 0:
+            print(f"Balancing dataset: should_end true={should_end_true_count}, false={should_end_false_count}")
+            print(f"Adding {needed_false_count} should_end=false rows for balance")
+            
+            # Concatenate all balancing data
+            all_balancing_data = pd.concat(balancing_data, ignore_index=True)
+            
+            # Sample the needed amount (or all if we don't have enough)
+            if len(all_balancing_data) >= needed_false_count:
+                balancing_sample = all_balancing_data.sample(n=needed_false_count, random_state=42)
             else:
-                print(f"No balancing needed: should_end true={should_end_true_count}, false={should_end_false_count}")
-
-    finally:
-        if writer:
-            writer.close()
-
+                balancing_sample = all_balancing_data
+                print(f"Warning: Only {len(all_balancing_data)} balancing rows available, using all")
+            
+            # Add balancing data to final dataset
+            if len(balancing_sample) > 0:
+                final_datasets.append(balancing_sample.reset_index(drop=True))
+        else:
+            print(f"No balancing needed: should_end true={should_end_true_count}, false={should_end_false_count}")
+    
+    # Combine all data and shuffle
+    combined_data = pd.concat(final_datasets, ignore_index=True)
+    
+    # Shuffle the combined dataset
+    shuffled_data = combined_data.sample(frac=1, random_state=42).reset_index(drop=True)
+    
+    # Write shuffled data to output
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    shuffled_data.to_parquet(output_path, index=False)
+    filtered_rows = len(shuffled_data)
     print(f"Filtering complete: {filtered_rows}/{total_rows} rows kept")
-    return filtered_rows
 
 
 @hydra.main(
