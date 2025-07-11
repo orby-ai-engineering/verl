@@ -28,16 +28,19 @@ command: |
   export LOCAL_MODEL_DIR=$HOME/model
   export S3_CHECKPOINT_DIR=s3://orby-llm/interleaved/checkpoints/$EXPERIMENT_NAME
 
-  # This should contain the data for all steps. For example,
+  # This should contain the training data for all steps. For example,
   # if INTERLEAVED_STEP_NUM=2, then it should contain:
-  # 0/train.parquet, 0/test.parquet, 1/train.parquet, 1/test.parquet
+  # 0/train.parquet, 1/train.parquet
+  # We use shared validation files for all steps below.
   # Example: https://us-east-1.console.aws.amazon.com/s3/buckets/orby-llm?region=us-east-1&bucketType=general&prefix=interleaved/data/subtask/
   export INTERLEAVED_DATA_DIR=s3://orby-llm/interleaved/data/subtask
 
   # Change these to the initial SFT data files. Currently, it's also downloaded from INTERLEAVED_DATA_DIR
-  # which contains sft_train.parquet and sft_test.parquet.
+  # which contains sft_train.parquet.
   export INITIAL_SFT_TRAIN_FILES=$LOCAL_DATA_DIR/sft_train.parquet
-  export INITIAL_SFT_VAL_FILES=$LOCAL_DATA_DIR/sft_test.parquet
+
+  # Change this to the shared validation files for all steps.
+  export SHARED_VAL_FILES=$LOCAL_DATA_DIR/sft_test.parquet
 
   # Set batch sizes based on the number of GPUs.
   export NUM_NODES=2

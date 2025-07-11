@@ -241,7 +241,7 @@ sft_step $INITIAL_SFT_EXPERIMENT_NAME \
     $MODEL_NAME \
     $SFT_TRAIN_BATCH_SIZE \
     $INITIAL_SFT_TRAIN_FILES \
-    $INITIAL_SFT_VAL_FILES \
+    $SHARED_VAL_FILES \
     $S3_INITIAL_SFT_CHECKPOINT_DIR \
     $SFT_LR \
     $ATTENTION_DROPOUT
@@ -258,7 +258,8 @@ aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 # Main loop
 for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     PER_STEP_TRAIN_FILES=$LOCAL_DATA_DIR/$i/train.parquet
-    PER_STEP_VAL_FILES=$LOCAL_DATA_DIR/$i/test.parquet
+    # We use shared validation files for all steps.
+    # PER_STEP_VAL_FILES=$LOCAL_DATA_DIR/$i/test.parquet
     LOCAL_OUTPUT_PARQUET=$LOCAL_DATA_DIR/$i/train_rollout.parquet
     ROLLOUT_OUTPUT_PARQUET=$ROLLOUT_OUTPUT_DIR/$i/train_rollout.parquet
 
@@ -292,7 +293,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         echo "======Step $i: submitting GRPO job on node 0======"
         grpo_step $GRPO_EXPERIMENT_NAME \
         $PER_STEP_TRAIN_FILES \
-        $PER_STEP_VAL_FILES \
+        $SHARED_VAL_FILES \
         $LOCAL_SFT_CHECKPOINT \
         $GRPO_TRAIN_BATCH_SIZE \
         $S3_GRPO_CHECKPOINT_DIR \
@@ -328,7 +329,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     $LOCAL_GRPO_CHECKPOINT \
     $SFT_TRAIN_BATCH_SIZE \
     $PER_STEP_TRAIN_FILES \
-    $PER_STEP_VAL_FILES \
+    $SHARED_VAL_FILES \
     $SFT_CHECKPOINT_DIR \
     $SFT_LR \
     $ATTENTION_DROPOUT
