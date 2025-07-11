@@ -109,7 +109,7 @@ def process_json_file(json_path, image_dir, split, prompt_format="thinking"):
             image = to_rgb(image)
             height_ratio, width_ratio = get_resized_ratio(image)
             resized_height, resized_width = image.height * height_ratio, image.width * width_ratio
-            image = image.resize((resized_width, resized_height))
+            image = image.resize((int(resized_width), int(resized_height)))  # Convert to integers
             image.save(img_byte_arr, format=image.format or "PNG")
             img_byte_arr = img_byte_arr.getvalue()
         except Exception as e:
