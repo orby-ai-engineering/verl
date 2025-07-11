@@ -305,8 +305,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
 
     # Wait for the checkpoint on other nodes.
     wait_for_hf_checkpoint $MAX_STEPS_CHECKPOINT/hf
-    # Wait for 60 seconds to make sure the checkpoint is fully uploaded
-    sleep 60
+    # Wait for 300 seconds to make sure the checkpoint is fully uploaded
+    sleep 300
 
     # Download the merged checkpoint
     export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
