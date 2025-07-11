@@ -260,8 +260,13 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # Start ray cluster and wait for all nodes
     bash orby/scripts/run_ray.sh $NUM_NODES
 
+    # Export vars for all nodes
+    export GRPO_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_grpo
+    export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${GRPO_EXPERIMENT_NAME}/
+
     # 1) Run rollout using the previous checkpoint
     echo "======Step $i: generating rollout data======"
+
     if [ "$NODE_RANK" = "0" ]; then
         echo "======Step $i: submitting rollout job on node 0======"
         generate_rollout_data $PER_STEP_TRAIN_FILES \
@@ -281,9 +286,6 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
 
         # 3) Run GRPO step
         echo "======Step $i: submitting GRPO job on node 0======"
-        export GRPO_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_grpo
-        export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${GRPO_EXPERIMENT_NAME}/
-
         grpo_step $GRPO_EXPERIMENT_NAME \
         $PER_STEP_TRAIN_FILES \
         $PER_STEP_VAL_FILES \
