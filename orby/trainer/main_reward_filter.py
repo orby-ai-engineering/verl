@@ -9,8 +9,20 @@ from verl.utils.fs import copy_to_local
 
 def parse_filter_bounds(bounds_str):
     """Parse filter bounds string like '[0.51, 0.9]' into tuple."""
-    bounds = ast.literal_eval(bounds_str)
-    return tuple(bounds)
+    # If it's already a list/tuple, return it as tuple
+    if isinstance(bounds_str, (list, tuple)):
+        return tuple(bounds_str)
+    
+    # If it's a string, try to parse it
+    try:
+        bounds = ast.literal_eval(bounds_str)
+        return tuple(bounds)
+    except (ValueError, SyntaxError):
+        # If ast.literal_eval fails, try to handle common cases
+        # Remove quotes if present and try again
+        cleaned = bounds_str.strip().strip('"').strip("'")
+        bounds = ast.literal_eval(cleaned)
+        return tuple(bounds)
 
 
 def filter_parquet_chunks(
