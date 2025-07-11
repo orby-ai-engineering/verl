@@ -22,21 +22,6 @@ def parse_filter_bounds(bounds_str):
     return (bounds_str[0], bounds_str[1])
 
 
-def get_nested_value(row, column_path):
-    """Extract value from nested dictionary structure using dot notation."""
-    if '.' not in column_path:
-        return row.get(column_path)
-    
-    parts = column_path.split('.')
-    value = row
-    for part in parts:
-        if isinstance(value, dict) and part in value:
-            value = value[part]
-        else:
-            return None
-    return value
-
-
 def extract_should_end_values(df, should_end_column):
     """Extract should_end values from nested dictionary structure."""
     should_end_values = []
@@ -60,6 +45,27 @@ def extract_should_end_values(df, should_end_column):
             should_end_values.append(row.get(should_end_column))
     
     return should_end_values
+
+
+def cast_table_to_schema(table: pa.Table, target_schema: pa.Schema) -> pa.Table:
+    casted_columns = []
+    
+    for field in target_schema:
+        name = field.name
+        target_type = field.type
+        
+        if name in table.column_names:
+            col = table[name]
+            # Cast only if needed
+            if not pa.types.is_same_type(col.type, target_type):
+                col = col.cast(target_type)
+        else:
+            # Fill with nulls if column is missing
+            col = pa.array([None] * len(table), type=target_type)
+
+        casted_columns.append(col)
+    
+    return pa.table(casted_columns, schema=target_schema)
 
 
 def filter_parquet_chunks(
@@ -175,23 +181,16 @@ def filter_parquet_chunks(
                 if len(balancing_sample) > 0:
                     # Reset index to avoid issues with PyArrow
                     balancing_sample = balancing_sample.reset_index(drop=True)
-                    
-                    # If no writer yet, create one
-                    if writer is None:
-                        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                        balancing_table = pa.Table.from_pandas(balancing_sample)
-                        writer = pq.ParquetWriter(output_path, schema=balancing_table.schema)
-                        writer.write_table(balancing_table)
-                    else:
-                        # Writer exists, try to write with schema consistency
-                        balancing_table = pa.Table.from_pandas(balancing_sample)
-                        # Check if we need to cast to match the existing schema
-                        if writer_schema is not None and not balancing_table.schema.equals(writer_schema):
-                            print("Schema mismatch detected, attempting to cast balancing data to match existing schema...")
-                            # Try to cast the balancing table to match the writer schema
-                            balancing_table = balancing_table.cast(writer_schema)
-                            print("Successfully cast balancing data to match existing schema")
-                        writer.write_table(balancing_table)
+
+                    # Writer exists, try to write with schema consistency
+                    balancing_table = pa.Table.from_pandas(balancing_sample)
+                    # Check if we need to cast to match the existing schema
+                    if writer_schema is not None and not balancing_table.schema.equals(writer_schema):
+                        print("Schema mismatch detected, attempting to cast balancing data to match existing schema...")
+                        # Try to cast the balancing table to match the writer schema
+                        balancing_table = cast_table_to_schema(balancing_table, writer_schema)
+                        print("Successfully cast balancing data to match existing schema")
+                    writer.write_table(balancing_table)
 
                     filtered_rows += len(balancing_sample)
             else:
