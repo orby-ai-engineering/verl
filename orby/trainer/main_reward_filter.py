@@ -22,6 +22,46 @@ def parse_filter_bounds(bounds_str):
     return (bounds_str[0], bounds_str[1])
 
 
+def get_nested_value(row, column_path):
+    """Extract value from nested dictionary structure using dot notation."""
+    if '.' not in column_path:
+        return row.get(column_path)
+    
+    parts = column_path.split('.')
+    value = row
+    for part in parts:
+        if isinstance(value, dict) and part in value:
+            value = value[part]
+        else:
+            return None
+    return value
+
+
+def extract_should_end_values(df, should_end_column):
+    """Extract should_end values from nested dictionary structure."""
+    should_end_values = []
+    
+    for _, row in df.iterrows():
+        if '.' in should_end_column:
+            # Handle nested access like "reward_model.ground_truth.should_end"
+            parts = should_end_column.split('.')
+            value = row[parts[0]]  # Get the first column value (should be a dict)
+            
+            # Navigate through the remaining nested structure
+            for part in parts[1:]:
+                if isinstance(value, dict) and part in value:
+                    value = value[part]
+                else:
+                    value = None
+                    break
+            should_end_values.append(value)
+        else:
+            # Direct column access
+            should_end_values.append(row.get(should_end_column))
+    
+    return should_end_values
+
+
 def filter_parquet_chunks(
     input_path,
     output_path,
@@ -56,14 +96,17 @@ def filter_parquet_chunks(
                 if reward_score_column not in df_chunk.columns:
                     raise ValueError(f"No '{reward_score_column}' column found in dataset. Make sure main_eval was run with save_scores=True")
                 
-                # Check for should_end column if balancing is enabled
-                if balance_should_end and should_end_column and should_end_column not in df_chunk.columns:
-                    print(f"Warning: should_end column '{should_end_column}' not found. Skipping balancing.")
-                    balance_should_end = False
+                # Check for nested should_end column if balancing is enabled
+                if balance_should_end and should_end_column:
+                    # For nested columns, check if the root column exists
+                    root_column = should_end_column.split('.')[0]
+                    if root_column not in df_chunk.columns:
+                        print(f"Warning: root column '{root_column}' for should_end not found. Skipping balancing.")
+                        balance_should_end = False
                 
                 print(f"Filtering based on column: {reward_score_column}")
                 if balance_should_end:
-                    print(f"Balancing enabled using column: {should_end_column}")
+                    print(f"Balancing enabled using nested column: {should_end_column}")
             
             # Filter chunk
             lower_bound, upper_bound = filter_bounds
@@ -72,13 +115,19 @@ def filter_parquet_chunks(
             
             # Count should_end statistics for balancing
             if balance_should_end and should_end_column:
-                should_end_true_in_chunk = filtered_chunk[filtered_chunk[should_end_column] == "true"].shape[0]
-                should_end_false_in_chunk = filtered_chunk[filtered_chunk[should_end_column] == "false"].shape[0]
+                # Extract should_end values from nested structure
+                filtered_should_end_values = extract_should_end_values(filtered_chunk, should_end_column)
+                should_end_true_in_chunk = sum(1 for val in filtered_should_end_values if val == "true")
+                should_end_false_in_chunk = sum(1 for val in filtered_should_end_values if val == "false")
                 should_end_true_count += should_end_true_in_chunk
                 should_end_false_count += should_end_false_in_chunk
                 
                 # Collect potential balancing data (should_end == false that didn't meet filter criteria)
-                balancing_mask = (df_chunk[should_end_column] == "false") & (~mask)
+                chunk_should_end_values = extract_should_end_values(df_chunk, should_end_column)
+                balancing_mask = []
+                for i, (meets_filter, should_end_val) in enumerate(zip(mask, chunk_should_end_values)):
+                    balancing_mask.append(should_end_val == "false" and not meets_filter)
+                
                 balancing_chunk = df_chunk[balancing_mask]
                 if len(balancing_chunk) > 0:
                     balancing_data.append(balancing_chunk)

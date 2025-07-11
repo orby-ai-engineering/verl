@@ -24,12 +24,18 @@ class TestRewardFilter:
         """Set up test fixtures before each test method."""
         self.test_dir = tempfile.mkdtemp()
         
-        # Create sample data for testing
+        # Create sample data for testing with proper nested structure
         self.sample_data = pd.DataFrame({
             'prompt': ['prompt1', 'prompt2', 'prompt3', 'prompt4', 'prompt5'],
             'response': ['response1', 'response2', 'response3', 'response4', 'response5'],
             'reward_score': [0.3, 0.7, 0.9, 0.4, 0.8],
-            'reward_model.ground_truth.should_end': ['true', 'false', 'true', 'false', 'true'],
+            'reward_model': [
+                {'ground_truth': {'should_end': 'true'}},
+                {'ground_truth': {'should_end': 'false'}},
+                {'ground_truth': {'should_end': 'true'}},
+                {'ground_truth': {'should_end': 'false'}},
+                {'ground_truth': {'should_end': 'true'}}
+            ],
             'other_column': ['a', 'b', 'c', 'd', 'e']
         })
         
@@ -111,7 +117,9 @@ class TestRewardFilter:
         assert len(output_df) == 4
         
         # Check balancing worked
-        should_end_counts = output_df['reward_model.ground_truth.should_end'].value_counts()
+        from orby.trainer.main_reward_filter import extract_should_end_values
+        should_end_values = extract_should_end_values(output_df, 'reward_model.ground_truth.should_end')
+        should_end_counts = pd.Series(should_end_values).value_counts()
         assert should_end_counts['true'] == should_end_counts['false']
 
     def test_filter_parquet_chunks_no_balancing_needed(self):
@@ -121,7 +129,12 @@ class TestRewardFilter:
             'prompt': ['prompt1', 'prompt2', 'prompt3', 'prompt4'],
             'response': ['response1', 'response2', 'response3', 'response4'],
             'reward_score': [0.7, 0.8, 0.9, 0.6],
-            'reward_model.ground_truth.should_end': ['true', 'false', 'true', 'false']
+            'reward_model': [
+                {'ground_truth': {'should_end': 'true'}},
+                {'ground_truth': {'should_end': 'false'}},
+                {'ground_truth': {'should_end': 'true'}},
+                {'ground_truth': {'should_end': 'false'}}
+            ]
         })
         
         balanced_input_path = os.path.join(self.test_dir, 'balanced_input.parquet')
@@ -240,7 +253,12 @@ class TestRewardFilter:
             'prompt': ['p1', 'p2', 'p3', 'p4'],
             'response': ['r1', 'r2', 'r3', 'r4'],
             'reward_score': [0.8, 0.9, 0.7, 0.2],  # Only row 3 available for balancing
-            'reward_model.ground_truth.should_end': ['true', 'true', 'true', 'false']
+            'reward_model': [
+                {'ground_truth': {'should_end': 'true'}},
+                {'ground_truth': {'should_end': 'true'}},
+                {'ground_truth': {'should_end': 'true'}},
+                {'ground_truth': {'should_end': 'false'}}
+            ]
         })
         
         imbalanced_input_path = os.path.join(self.test_dir, 'imbalanced_input.parquet')
@@ -260,7 +278,9 @@ class TestRewardFilter:
         assert rows_kept == 4
         
         output_df = pd.read_parquet(self.output_path)
-        should_end_counts = output_df['reward_model.ground_truth.should_end'].value_counts()
+        from orby.trainer.main_reward_filter import extract_should_end_values
+        should_end_values = extract_should_end_values(output_df, 'reward_model.ground_truth.should_end')
+        should_end_counts = pd.Series(should_end_values).value_counts()
         assert should_end_counts['true'] == 3
         assert should_end_counts['false'] == 1
 
