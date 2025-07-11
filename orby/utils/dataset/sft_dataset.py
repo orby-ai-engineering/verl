@@ -100,6 +100,7 @@ def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
         
         dataset = dataset.map(reorder_response, desc="Standardizing response key order")
     
+    logger.info(f"Dataset features: {dataset.features}")
     return dataset
 
 
@@ -191,6 +192,7 @@ class SFTDataset(Dataset):
                 "train"
             ]
             # Clean the dataset to remove unnecessary fields
+            logger.info(f"Dataset features for {parquet_file}")
             dataframe = clean_dataset_for_training(dataframe)
             dataframes.append(dataframe)
         self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
