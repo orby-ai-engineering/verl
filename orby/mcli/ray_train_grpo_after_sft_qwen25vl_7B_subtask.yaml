@@ -68,7 +68,7 @@ command: |
   export CUDA_LAUNCH_BLOCKING=1
 
   # Download model
-  aws s3 cp $S3_BASE_MODEL_PATH $LOCAL_BASE_MODEL_PATH --recursive
+  aws s3 cp --no-progress $S3_BASE_MODEL_PATH $LOCAL_BASE_MODEL_PATH --recursive
 
   # Install verl lib: https://verl.readthedocs.io/en/latest/start/install.html
   pip3 install -e .[vllm]
