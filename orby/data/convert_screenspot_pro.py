@@ -74,6 +74,13 @@ def get_resized_ratio(image):
 
     return height_ratio, width_ratio
 
+def to_rgb(pil_image: Image.Image) -> Image.Image:
+    if pil_image.mode == 'RGBA':
+        white_background = Image.new("RGB", pil_image.size, (255, 255, 255))
+        white_background.paste(pil_image, mask=pil_image.split()[3])  # Use alpha channel as mask
+        return white_background
+    else:
+        return pil_image.convert("RGB")
 
 def process_json_file(json_path, image_dir, split, prompt_format="thinking"):
     """
@@ -99,6 +106,10 @@ def process_json_file(json_path, image_dir, split, prompt_format="thinking"):
             image = Image.open(img_path)
             # Convert PIL Image to bytes
             img_byte_arr = io.BytesIO()
+            image = to_rgb(image)
+            height_ratio, width_ratio = get_resized_ratio(image)
+            resized_height, resized_width = image.height * height_ratio, image.width * width_ratio
+            image = image.resize((resized_width, resized_height))
             image.save(img_byte_arr, format=image.format or "PNG")
             img_byte_arr = img_byte_arr.getvalue()
         except Exception as e:
@@ -106,7 +117,7 @@ def process_json_file(json_path, image_dir, split, prompt_format="thinking"):
             continue
 
         # Get image resize ratios
-        height_ratio, width_ratio = get_resized_ratio(image)
+       
 
         # Adjust bbox based on resize ratios
         bbox = example["bbox"]

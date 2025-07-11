@@ -243,6 +243,8 @@ if __name__ == "__main__":
             image = to_rgb(image)
             # Get the resized width and height of the image.
             resized_height, resized_width = get_resized_hw(image, args.max_pixels)
+
+            image = image.resize((resized_width, resized_height))
             # Adjust bbox based on resize ratios. Uground labels range from 
             # [0, 999]
             bbox = [

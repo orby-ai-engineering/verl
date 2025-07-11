@@ -45,6 +45,14 @@ _SOURCE_MAP = {
     "macos": "desktop",
 }
 
+def to_rgb(pil_image: Image.Image) -> Image.Image:
+    if pil_image.mode == 'RGBA':
+        white_background = Image.new("RGB", pil_image.size, (255, 255, 255))
+        white_background.paste(pil_image, mask=pil_image.split()[3])  # Use alpha channel as mask
+        return white_background
+    else:
+        return pil_image.convert("RGB")
+
 
 def get_resized_wh(image):
     """
@@ -100,7 +108,10 @@ if __name__ == "__main__":
             # Get image and resize ratios
             if isinstance(image, bytes):
                 image = Image.open(io.BytesIO(image))
+            image = to_rgb(image)
             resized_height, resized_width = get_resized_wh(image)
+
+            image = image.resize((resized_width, resized_height))
 
             # Adjust bbox based on resize ratios
             bbox = [
