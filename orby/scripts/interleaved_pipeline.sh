@@ -44,12 +44,11 @@ extract_step_from_checkpoint_dir() {
 
 generate_rollout_data() {
     local train_files="$1"
-    local val_files="$2"
-    local output_parquet="$3"
-    local checkpoint="$4"
-    local temperature="$5"
-    local n_samples="$6"
-    local rollout_batch_size="$7"
+    local output_parquet="$2"
+    local checkpoint="$3"
+    local temperature="$4"
+    local n_samples="$5"
+    local rollout_batch_size="$6"
 
     ray job submit --address="http://127.0.0.1:8265" \
         --runtime-env=verl/trainer/runtime_env.yaml \
@@ -234,12 +233,12 @@ export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
 
 # Run initial SFT step
-sft_step $INITIAL_SFT_EXPERIMENT_NAME \
-    $MODEL_NAME \
-    $SFT_TRAIN_BATCH_SIZE \
-    $INITIAL_SFT_TRAIN_FILES \
-    $INITIAL_SFT_VAL_FILES \
-    $S3_INITIAL_SFT_CHECKPOINT_DIR $@
+# sft_step $INITIAL_SFT_EXPERIMENT_NAME \
+#     $MODEL_NAME \
+#     $SFT_TRAIN_BATCH_SIZE \
+#     $INITIAL_SFT_TRAIN_FILES \
+#     $INITIAL_SFT_VAL_FILES \
+#     $S3_INITIAL_SFT_CHECKPOINT_DIR $@
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
@@ -270,7 +269,6 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     if [ "$NODE_RANK" = "0" ]; then
         echo "======Step $i: submitting rollout job on node 0======"
         generate_rollout_data $PER_STEP_TRAIN_FILES \
-        $PER_STEP_VAL_FILES \
         $LOCAL_OUTPUT_PARQUET \
         $LOCAL_SFT_CHECKPOINT \
         $TEMPERATURE \
