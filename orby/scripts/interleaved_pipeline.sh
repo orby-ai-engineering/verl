@@ -59,7 +59,7 @@ generate_rollout_data() {
             trainer.n_gpus_per_node=8 \
             data.path=$train_files \
             data.prompt_key=prompt \
-            +data.response_key=predictions \
+            +data.response_key=$GENERATED_DATA_RESPONSE_KEY \
             data.batch_size=$rollout_batch_size \
             +data.max_prompt_length=7680 \
             +data.filter_overlong_prompts=False \
@@ -203,6 +203,37 @@ grpo_step() {
         trainer.total_epochs=1 | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
 }
 
+filter_step() {
+    local input_parquet_with_rollout="$1"
+    local medium_difficulty_train_files="$2"
+    local hard_difficulty_train_files="$3"
+    local medium_difficulty_filter_bound_str="$4"
+    local hard_difficulty_filter_bound_str="$5"
+
+    # Generate scores for each row of the input parquet with rollout
+    python3 -m orby.trainer.main_eval \
+        data.path=$input_parquet_with_rollout \
+        data.prompt_key=prompt \
+        data.response_key=$GENERATED_DATA_RESPONSE_KEY \
+        +data.save_scores=True \
+        custom_reward_function.path=$REWARD_FILE \
+        custom_reward_function.name=$REWARD_FN \
+        +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \
+        +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
+        +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE
+
+    # Filter the input parquet with rollout based on the scores
+    python3 -m orby.trainer.main_reward_filter \
+        data.path=$input_parquet_with_rollout \
+        data.medium_difficulty_output_path=$medium_difficulty_train_files \
+        data.hard_difficulty_output_path=$hard_difficulty_train_files \
+        data.medium_difficulty_filter_bound=$medium_difficulty_filter_bound_str \
+        data.hard_difficulty_filter_bound=$hard_difficulty_filter_bound_str \
+        data.balance_should_end=true \
+        data.should_end_column="reward_model.ground_truth.should_end" \
+        data.reward_score_column=$REWARD_SCORE_COLUMN
+}
+
 function merge_checkpoint() {
     local max_steps_checkpoint="$1"
     aws s3 ls $max_steps_checkpoint/hf
@@ -287,12 +318,16 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
 
         # 2) Filtering step
         echo "======Step $i: submitting filtering job on node 0======"
-        # Placeholder for filtering step
+        filter_step $LOCAL_OUTPUT_PARQUET \
+        $PER_STEP_GRPO_TRAIN_FILES \
+        $PER_STEP_SFT_TRAIN_FILES \
+        $MEDIUM_DIFFICULTY_FILTER_BOUND_STR \
+        $HARD_DIFFICULTY_FILTER_BOUND_STR
 
         # 3) Run GRPO step
         echo "======Step $i: submitting GRPO job on node 0======"
         grpo_step $GRPO_EXPERIMENT_NAME \
-        $PER_STEP_TRAIN_FILES \
+        $PER_STEP_GRPO_TRAIN_FILES \
         $SHARED_VAL_FILES \
         $LOCAL_SFT_CHECKPOINT \
         $GRPO_TRAIN_BATCH_SIZE \
@@ -328,7 +363,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     sft_step $SFT_EXPERIMENT_NAME \
     $LOCAL_GRPO_CHECKPOINT \
     $SFT_TRAIN_BATCH_SIZE \
-    $PER_STEP_TRAIN_FILES \
+    $PER_STEP_SFT_TRAIN_FILES \
     $SHARED_VAL_FILES \
     $SFT_CHECKPOINT_DIR \
     $SFT_LR \

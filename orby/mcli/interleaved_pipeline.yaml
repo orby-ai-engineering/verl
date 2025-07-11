@@ -59,6 +59,12 @@ command: |
   export COORDINATES_GAUSSIAN_SIGMA=2
   export COORDINATES_PIXEL_SQUARE_SIZE=10
   export GRPO_LR=1e-6
+  export GENERATED_DATA_RESPONSE_KEY=predictions
+
+  # Set difficulty filter parameters
+  export MEDIUM_DIFFICULTY_FILTER_BOUND_STR="[0.51, 0.9]"
+  export HARD_DIFFICULTY_FILTER_BOUND_STR="[0.09, 0.5]"
+  export REWARD_SCORE_COLUMN="reward_score"
 
   # Set rollout parameters
   export ROLLOUT_OUTPUT_DIR=s3://orby-llm/interleaved/rollout/$EXPERIMENT_NAME
