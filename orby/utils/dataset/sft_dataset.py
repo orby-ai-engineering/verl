@@ -88,17 +88,31 @@ def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
     if 'data_source' in dataset.features and dataset['data_source'][0] == 'subtask_direct_distill':
         logger.info("Standardizing response message key order")
         
-        def reorder_response(example):
-            resp = example["response"][0]
-            example["response"] = [
-                {
-                    "content": resp['content'],
-                    "role": resp['role']
-                }
-            ]
-            return example
+        # def reorder_response(example):
+        #     resp = example["response"][0]
+        #     example["response"] = [
+        #         {
+        #             "content": resp['content'],
+        #             "role": resp['role']
+        #         }
+        #     ]
+        #     return example
         
-        dataset = dataset.map(reorder_response, desc="Standardizing response key order")
+        # dataset = dataset.map(reorder_response, desc="Standardizing response key order")
+        
+        # Explicitly cast the response column to ensure schema compatibility
+        # For list of dicts, we need to cast the entire dataset with new features
+        response_features = [{
+            "content": datasets.Value("string"),
+            "role": datasets.Value("string")
+        }]
+        
+        # Create new features with the correct order
+        new_features = dataset.features.copy()
+        new_features["response"] = response_features
+        
+        # Cast the dataset to the new schema
+        dataset = dataset.cast(new_features)
     
     logger.info(f"Dataset features: {dataset.features}")
     return dataset
