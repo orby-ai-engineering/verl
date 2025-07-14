@@ -18,6 +18,7 @@ The input is a parquet file that contains N generated sequences and (optional) t
 """
 
 from collections import defaultdict
+import os
 import pprint
 
 import hydra
@@ -43,6 +44,9 @@ def get_custom_reward_fn(config):
         raise FileNotFoundError(f"Reward function file '{file_path}' not found.")
 
     spec = importlib.util.spec_from_file_location("custom_module", file_path)
+    if spec is None:
+        raise RuntimeError(f"Could not create module spec for '{file_path}'")
+    
     module = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(module)
@@ -50,6 +54,8 @@ def get_custom_reward_fn(config):
         raise RuntimeError(f"Error loading module from '{file_path}'") from e
 
     function_name = reward_fn_config.get("name")
+    if function_name is None:
+        raise ValueError("Reward function name not specified in config")
 
     if not hasattr(module, function_name):
         raise AttributeError(
@@ -82,6 +88,73 @@ def process_item(reward_fn, data_source, response_lst, reward_data):
             pass
 
     return data_source, mean_scores
+
+
+def upload_to_wandb(metric_dict, model_name=None, dataset_name=None):
+    """
+    Upload evaluation results to Weights & Biases as a table.
+    
+    Args:
+        metric_dict: Dictionary containing evaluation metrics
+        model_name: Name of the model being evaluated
+        dataset_name: Name of the dataset being evaluated
+    """
+    try:
+        import wandb
+        
+        # Initialize wandb run
+        wandb.init(
+            project="eval_screenspot",
+            name=f"{model_name}_{dataset_name}" if model_name and dataset_name else "evaluation",
+            config={
+                "model_name": model_name,
+                "dataset_name": dataset_name,
+                "evaluation_type": "screenspot"
+            }
+        )
+        
+        # Create a table from the metric dictionary
+        # Convert the nested dictionary structure to a flat table
+        table_data = []
+        
+        for metric_key, metric_value in metric_dict.items():
+            # Parse the metric key to extract components
+            # Format: test_score/{data_source}/{metric_name}
+            parts = metric_key.split('/')
+            if len(parts) >= 3:
+                data_source = parts[1]
+                metric_name = '/'.join(parts[2:])
+                
+                table_data.append({
+                    "data_source": data_source,
+                    "metric_name": metric_name,
+                    "metric_value": float(metric_value),
+                    "full_metric_key": metric_key
+                })
+        
+        if table_data:
+            # Create wandb table
+            table = wandb.Table(columns=["data_source", "metric_name", "metric_value", "full_metric_key"])
+            for row in table_data:
+                table.add_data(row["data_source"], row["metric_name"], row["metric_value"], row["full_metric_key"])
+            
+            # Log the table
+            wandb.log({"evaluation_results": table})
+            
+            # Also log individual metrics for easier tracking
+            for metric_key, metric_value in metric_dict.items():
+                wandb.log({metric_key: float(metric_value)})
+            
+            print(f"Successfully uploaded {len(table_data)} metrics to wandb")
+        else:
+            print("Warning: No metrics to upload to wandb")
+            
+        wandb.finish()
+        
+    except ImportError:
+        print("Warning: wandb not installed. Skipping wandb upload.")
+    except Exception as e:
+        print(f"Error uploading to wandb: {e}")
 
 
 @hydra.main(
@@ -137,6 +210,12 @@ def main(config):
             metric_dict[f"test_score/{data_source}/{k}"] = v
 
     pprint.pprint(metric_dict)
+    
+    # Upload to wandb if environment variable is set
+    if os.getenv("UPLOAD_TO_WANDB", "false").lower() == "true":
+        model_name = os.getenv("MODEL_NAME")
+        dataset_name = os.getenv("DATASET_NAME")
+        upload_to_wandb(metric_dict, model_name, dataset_name)
 
 
 if __name__ == "__main__":
