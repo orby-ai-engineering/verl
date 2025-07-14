@@ -246,7 +246,8 @@ sft_step $INITIAL_SFT_EXPERIMENT_NAME \
     $SHARED_VAL_FILES \
     $S3_INITIAL_SFT_CHECKPOINT_DIR \
     $SFT_LR \
-    $ATTENTION_DROPOUT
+    $ATTENTION_DROPOUT \
+    $SFT_MICRO_BATCH_SIZE_PER_GPU
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
@@ -299,7 +300,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         $LOCAL_SFT_CHECKPOINT \
         $GRPO_TRAIN_BATCH_SIZE \
         $S3_GRPO_CHECKPOINT_DIR \
-        $GRPO_LR
+        $GRPO_LR \
+        $GRPO_MICRO_BATCH_SIZE_PER_GPU
 
         # Stop ray cluster
         ray stop
@@ -334,7 +336,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     $SHARED_VAL_FILES \
     $SFT_CHECKPOINT_DIR \
     $SFT_LR \
-    $ATTENTION_DROPOUT
+    $ATTENTION_DROPOUT \
+    $SFT_MICRO_BATCH_SIZE_PER_GPU
 
     # Find and copy the SFT checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$SFT_CHECKPOINT_DIR")
