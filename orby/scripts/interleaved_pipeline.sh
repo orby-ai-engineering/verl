@@ -321,7 +321,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
 
         # 2) Filtering step
-        echo "TOP LEVEL - Step 1.$i.1: submitting filtering job on node 0 ========================================"
+        echo "TOP LEVEL - Step 1.$i.1: filter by difficulty on node 0 ============================================"
         filter_step $LOCAL_OUTPUT_PARQUET \
         $PER_STEP_GRPO_TRAIN_FILES \
         $PER_STEP_SFT_TRAIN_FILES \
