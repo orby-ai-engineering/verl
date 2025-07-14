@@ -34,7 +34,7 @@ find_max_step_checkpoint() {
         return 1
     fi
 
-    echo "TOP LEVEL - Found checkpoint: ${s3_dir}${max_steps_checkpoint}"
+    echo "${s3_dir}${max_steps_checkpoint}" # Return the checkpoint path
 }
 
 extract_step_from_checkpoint_dir() {
@@ -205,6 +205,43 @@ grpo_step() {
         trainer.total_epochs=1 | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
 }
 
+eval_step() {
+    local eval_data_path="$1"
+    local model_path="$2"
+
+    # Generation
+    python3 -m orby.trainer.main_generation \
+        trainer.nnodes=1 \
+        trainer.n_gpus_per_node=8 \
+        data.path=$eval_data_path \
+        data.prompt_key=prompt \
+        data.batch_size=1024 \
+        +data.max_prompt_length=7680 \
+        data.n_samples=1 \
+        data.output_path=$EVAL_OUTPUT_FILE \
+        model.path=$model_path \
+        rollout.temperature=0 \
+        rollout.top_p=1.0 \
+        rollout.prompt_length=7680 \
+        rollout.response_length=512 \
+        rollout.tensor_model_parallel_size=1 \
+        rollout.gpu_memory_utilization=0.9 \
+        rollout.max_num_batched_tokens=65536 \
+        +rollout.limit_images=3
+
+    # Evaluation
+    python3 -m orby.trainer.main_eval \
+        data.path=$EVAL_OUTPUT_FILE \
+        data.prompt_key=prompt \
+        data.response_key=responses \
+        +data.save_scores=false \
+        custom_reward_function.path=$REWARD_FILE \
+        custom_reward_function.name=$EVAL_REWARD_FN \
+        +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \
+        +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
+        +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE
+}
+
 filter_step() {
     local input_parquet_with_rollout="$1"
     local medium_difficulty_train_files="$2"
@@ -301,6 +338,9 @@ export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
 export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/initial_sft/$STEP_DIR
 aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 
+# Evaluation
+eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT
+
 # Main loop
 echo "TOP LEVEL - Step 1: Main loop ======================================================================"
 for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
@@ -373,6 +413,9 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     export LOCAL_GRPO_CHECKPOINT=$LOCAL_MODEL_DIR/grpo_${i}/$STEP_DIR
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
 
+    # Evaluation
+    eval_step $SHARED_VAL_FILES $LOCAL_GRPO_CHECKPOINT
+
     # 4) Run SFT step
     echo "TOP LEVEL - Step 1.$i.4: running SFT ==============================================================="
     export SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_sft
@@ -392,4 +435,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
     export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/sft_${i}/$STEP_DIR
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+
+    # Evaluation
+    eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT
 done
