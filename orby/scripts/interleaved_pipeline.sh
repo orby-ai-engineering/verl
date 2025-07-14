@@ -12,7 +12,7 @@ find_max_step_checkpoint() {
     local checkpoint_dirs=$(aws s3 ls "$s3_dir" | grep "global_step_" | awk '{print $2}' | sed 's|/$||')
     
     if [ -z "$checkpoint_dirs" ]; then
-        echo "Error: No checkpoint directories found in $s3_dir" >&2
+        echo "TOP LEVEL - Error: No checkpoint directories found in $s3_dir" >&2
         return 1
     fi
     
@@ -30,11 +30,11 @@ find_max_step_checkpoint() {
     done
     
     if [ -z "$max_steps_checkpoint" ]; then
-        echo "Error: No valid checkpoint directories found with 'global_step_' pattern" >&2
+        echo "TOP LEVEL - Error: No valid checkpoint directories found with 'global_step_' pattern" >&2
         return 1
     fi
 
-    echo "${s3_dir}${max_steps_checkpoint}"
+    echo "TOP LEVEL - Found checkpoint: ${s3_dir}${max_steps_checkpoint}"
 }
 
 extract_step_from_checkpoint_dir() {
@@ -240,7 +240,7 @@ function merge_checkpoint() {
     local max_steps_checkpoint="$1"
     aws s3 ls $max_steps_checkpoint/hf
     if [ $? -eq 0 ]; then
-        echo "GRPO checkpoint is already available on S3: $max_steps_checkpoint/hf"
+        echo "TOP LEVEL - GRPO checkpoint is already available on S3: $max_steps_checkpoint/hf"
         return 0
     fi
     python3 orby/scripts/model_merger.py merge \
@@ -255,17 +255,17 @@ function wait_for_hf_checkpoint() {
     while true; do
         aws s3 ls $max_steps_checkpoint
         if [ $? -eq 0 ]; then
-            echo "Checkpoint is available on S3: $max_steps_checkpoint"
+            echo "TOP LEVEL - Checkpoint is available on S3: $max_steps_checkpoint"
             break
         else
-            echo "Waiting for checkpoint to be available on S3..."
+            echo "TOP LEVEL - Waiting for checkpoint to be available on S3..."
             sleep 10
         fi
     done
 }
 
 
-echo "======Initial SFT step======"
+echo "TOP LEVEL - Step 0: Initial SFT step ==============================================================="
 export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
 
@@ -282,7 +282,7 @@ sft_step $INITIAL_SFT_EXPERIMENT_NAME \
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
-echo "Found initial SFT checkpoint: $MAX_STEPS_CHECKPOINT"
+echo "TOP LEVEL - Found initial SFT checkpoint: $MAX_STEPS_CHECKPOINT"
 
 # Copy the initial SFT checkpoint with maximum steps
 export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
@@ -290,6 +290,7 @@ export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/initial_sft/$STEP_DIR
 aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 
 # Main loop
+echo "TOP LEVEL - Step 1: Main loop ======================================================================"
 for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     PER_STEP_TRAIN_FILES=$LOCAL_DATA_DIR/$i/train.parquet
     # We use shared validation files for all steps.
@@ -305,10 +306,10 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${GRPO_EXPERIMENT_NAME}/
 
     # 1) Run rollout using the previous checkpoint
-    echo "======Step $i: generating rollout data======"
+    echo "TOP LEVEL - Step 1.$i: generating rollout data ====================================================="
 
     if [ "$NODE_RANK" = "0" ]; then
-        echo "======Step $i: submitting rollout job on node 0======"
+        echo "TOP LEVEL - Step 1.$i.0: submitting rollout job on node 0 =========================================="
         generate_rollout_data $PER_STEP_TRAIN_FILES \
         $LOCAL_OUTPUT_PARQUET \
         $LOCAL_SFT_CHECKPOINT \
@@ -320,7 +321,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
 
         # 2) Filtering step
-        echo "======Step $i: submitting filtering job on node 0======"
+        echo "TOP LEVEL - Step 1.$i.1: submitting filtering job on node 0 ========================================"
         filter_step $LOCAL_OUTPUT_PARQUET \
         $PER_STEP_GRPO_TRAIN_FILES \
         $PER_STEP_SFT_TRAIN_FILES \
@@ -328,7 +329,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         $HARD_DIFFICULTY_FILTER_BOUND_STR
 
         # 3) Run GRPO step
-        echo "======Step $i: submitting GRPO job on node 0======"
+        echo "TOP LEVEL - Step 1.$i.2: submitting GRPO job on node 0 ============================================="
         grpo_step $GRPO_EXPERIMENT_NAME \
         $PER_STEP_GRPO_TRAIN_FILES \
         $SHARED_VAL_FILES \
@@ -346,7 +347,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_GRPO_CHECKPOINT_DIR")
 
     if [ "$NODE_RANK" = "0" ]; then
-        echo "======Step $i: merging GRPO checkpoint on node 0======"
+        echo "TOP LEVEL - Step 1.$i.3: merging GRPO checkpoint on node 0 ========================================="
         merge_checkpoint $MAX_STEPS_CHECKPOINT
     fi
 
@@ -361,7 +362,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
 
     # 4) Run SFT step
-    echo "======Step $i: running SFT======"
+    echo "TOP LEVEL - Step 1.$i.4: running SFT ==============================================================="
     export SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_sft
     export SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${SFT_EXPERIMENT_NAME}/
     sft_step $SFT_EXPERIMENT_NAME \

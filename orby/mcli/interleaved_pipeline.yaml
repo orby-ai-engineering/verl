@@ -105,4 +105,5 @@ command: |
   aws s3 cp --no-progress --recursive $INTERLEAVED_DATA_DIR $LOCAL_DATA_DIR
 
   # Run interleaved pipeline
+  echo "TOP LEVEL - Now starting the interleaved training pipeline at orby/scripts/interleaved_pipeline.sh"
   bash orby/scripts/interleaved_pipeline.sh
