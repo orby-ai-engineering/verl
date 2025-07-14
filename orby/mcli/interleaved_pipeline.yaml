@@ -42,7 +42,7 @@ command: |
   export INITIAL_SFT_TRAIN_FILES=$LOCAL_DATA_DIR/sft_train.parquet
 
   # Change this to the shared validation files for all steps.
-  export SHARED_VAL_FILES=$LOCAL_DATA_DIR/sft_test.parquet
+  export SHARED_VAL_FILES=$LOCAL_DATA_DIR/test.parquet
 
   # Set batch sizes based on the number of GPUs. Note max sft micro batch size per GPU is 4.
   # Rollout batch size 1024 is tested, larger rollout batch size may be feasible, but may cause OOM
