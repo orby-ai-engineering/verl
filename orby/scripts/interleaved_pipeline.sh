@@ -87,6 +87,7 @@ sft_step() {
     local checkpoint_dir="$6"
     local sft_lr="$7"
     local attention_dropout="$8"
+    local sft_micro_batch_size_per_gpu="$9"
 
     torchrun \
         --nproc_per_node=8 \
@@ -96,7 +97,7 @@ sft_step() {
         --master_port=${MASTER_PORT:-29500} \
         -m orby.trainer.fsdp_sft_trainer \
         data.train_batch_size=$batch_size \
-        data.micro_batch_size_per_gpu=2 \
+        data.micro_batch_size_per_gpu=$sft_micro_batch_size_per_gpu \
         data.train_files=$train_files \
         data.val_files=$val_files \
         +data.max_prompt_length=7680 \
@@ -142,6 +143,7 @@ grpo_step() {
     local grpo_train_batch_size="$5"
     local s3_checkpoint_dir="$6"
     local grpo_lr="$7"
+    local grpo_micro_batch_size_per_gpu="$8"
 
     ray job submit --address="http://127.0.0.1:8265" \
     --runtime-env=verl/trainer/runtime_env.yaml \
@@ -167,7 +169,7 @@ grpo_step() {
         actor_rollout_ref.actor.optim.lr=$grpo_lr \
         actor_rollout_ref.model.use_remove_padding=True \
         actor_rollout_ref.actor.ppo_mini_batch_size=$grpo_train_batch_size \
-        actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
+        actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=$grpo_micro_batch_size_per_gpu \
         actor_rollout_ref.actor.ppo_max_token_len_per_gpu=8192 \
         actor_rollout_ref.actor.use_kl_loss=True \
         actor_rollout_ref.actor.kl_loss_coef=0.01 \
@@ -244,7 +246,8 @@ sft_step $INITIAL_SFT_EXPERIMENT_NAME \
     $SHARED_VAL_FILES \
     $S3_INITIAL_SFT_CHECKPOINT_DIR \
     $SFT_LR \
-    $ATTENTION_DROPOUT
+    $ATTENTION_DROPOUT \
+    $SFT_MICRO_BATCH_SIZE_PER_GPU
 
 # Find and copy the initial SFT checkpoint with maximum steps
 export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
@@ -297,7 +300,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         $LOCAL_SFT_CHECKPOINT \
         $GRPO_TRAIN_BATCH_SIZE \
         $S3_GRPO_CHECKPOINT_DIR \
-        $GRPO_LR
+        $GRPO_LR \
+        $GRPO_MICRO_BATCH_SIZE_PER_GPU
 
         # Stop ray cluster
         ray stop
@@ -332,7 +336,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     $SHARED_VAL_FILES \
     $SFT_CHECKPOINT_DIR \
     $SFT_LR \
-    $ATTENTION_DROPOUT
+    $ATTENTION_DROPOUT \
+    $SFT_MICRO_BATCH_SIZE_PER_GPU
 
     # Find and copy the SFT checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$SFT_CHECKPOINT_DIR")
