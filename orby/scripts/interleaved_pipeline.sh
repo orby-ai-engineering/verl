@@ -212,6 +212,8 @@ filter_step() {
     local medium_difficulty_filter_bound_str="$4"
     local hard_difficulty_filter_bound_str="$5"
 
+    echo "TOP LEVEL - Step 1.$i.1.0: generating scores ======================================================="
+
     # Generate scores for each row of the input parquet with rollout
     python3 -m orby.trainer.main_eval \
         data.path=$input_parquet_with_rollout \
@@ -224,6 +226,11 @@ filter_step() {
         +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
         +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE
 
+    echo "TOP LEVEL - Step 1.$i.1.1: filtering by difficulty ================================================="
+
+    input_num_rows=$(parquet-tools inspect $input_parquet_with_rollout | grep 'num_rows' | awk '{print $2}')
+    echo "TOP LEVEL - Before filtering, the full rollout parquet has $input_num_rows rows"
+
     # Filter the input parquet with rollout based on the scores
     python3 -m orby.trainer.main_reward_filter \
         data.path=$input_parquet_with_rollout \
@@ -234,6 +241,11 @@ filter_step() {
         data.balance_should_end=true \
         data.should_end_column="reward_model.ground_truth.should_end" \
         data.reward_score_column=$REWARD_SCORE_COLUMN
+
+    medium_difficulty_num_rows=$(parquet-tools inspect $medium_difficulty_train_files | grep 'num_rows' | awk '{print $2}')
+    hard_difficulty_num_rows=$(parquet-tools inspect $hard_difficulty_train_files | grep 'num_rows' | awk '{print $2}')
+    echo "TOP LEVEL - After filtering, the medium difficulty parquet has $medium_difficulty_num_rows rows"
+    echo "TOP LEVEL - After filtering, the hard difficulty parquet has $hard_difficulty_num_rows rows"
 }
 
 function merge_checkpoint() {

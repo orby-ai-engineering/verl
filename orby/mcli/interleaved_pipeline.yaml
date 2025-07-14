@@ -86,6 +86,7 @@ command: |
   pip install s3fs
   pip install sgl-kernel
   pip install boto3
+  pip install parquet-tools
 
   # Set environment variables
   export HYDRA_FULL_ERROR=1
