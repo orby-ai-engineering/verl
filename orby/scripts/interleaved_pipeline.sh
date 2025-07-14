@@ -341,7 +341,7 @@ else
     echo "TOP LEVEL - Step 0.0: downloading initial SFT checkpoint ==========================================="
     export STEP_DIR=$(extract_step_from_checkpoint_dir $BASE_SFT_CHECKPOINT)
     export MAX_STEPS_CHECKPOINT=$S3_INITIAL_SFT_CHECKPOINT_DIR/$STEP_DIR
-    aws s3 cp --no-progress $BASE_SFT_CHECKPOINT $MAX_STEPS_CHECKPOINT
+    aws s3 cp --no-progress --recursive $BASE_SFT_CHECKPOINT $MAX_STEPS_CHECKPOINT
 fi
 
 echo "TOP LEVEL - Collected initial SFT checkpoint: $MAX_STEPS_CHECKPOINT"
