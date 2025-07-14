@@ -54,7 +54,7 @@ generate_rollout_data() {
         --runtime-env=verl/trainer/runtime_env.yaml \
         --no-wait \
         -- \
-        python3 -u -m orby.trainer.main_generation \
+        python3 -m orby.trainer.main_generation \
             trainer.nnodes=$NUM_NODES \
             trainer.n_gpus_per_node=8 \
             data.path=$train_files \
