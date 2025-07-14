@@ -20,6 +20,7 @@ import os
 import hydra
 import numpy as np
 import ray
+from tqdm import tqdm
 
 os.environ["NCCL_DEBUG"] = "WARN"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -56,7 +57,7 @@ def _create_dataloader(path, config, tokenizer, processor):
     dataloader = DataLoader(
         dataset=dataset,
         batch_size=config.data.batch_size,
-        num_workers=config.data.get("dataloader_num_workers", 8),
+        num_workers=config.data.get("dataloader_num_workers", 16),
         shuffle=False,
         drop_last=False,
         collate_fn=default_collate_fn,
@@ -118,6 +119,7 @@ def main_task(config):
     wg = RayWorkerGroup(
         resource_pool=resource_pool, ray_cls_with_init=ray_cls_with_init
     )
+    
     wg.init_model()
 
     for path, output_path in zip(paths, output_paths):
@@ -180,7 +182,8 @@ def main_task(config):
 
         # add to the data frame
         dataset = pd.read_parquet(path)
-        dataset["responses"] = output_lst
+        response_key = config.data.get("response_key", "responses")
+        dataset[response_key] = output_lst
 
         # write to a new parquet
         output_dir = os.path.dirname(output_path)

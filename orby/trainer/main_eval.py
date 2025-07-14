@@ -75,19 +75,12 @@ def get_custom_reward_fn(config):
 
 
 @ray.remote
-def process_item(reward_fn, data_source, response_lst, reward_data):
+def process_item(reward_fn, idx, data_source, response_lst, reward_data):
     ground_truth = reward_data["ground_truth"]
     score_lst = [reward_fn(data_source, r, ground_truth) for r in response_lst]
-    df = pd.DataFrame(score_lst)
-
-    mean_scores = {}
-    for name, score in df.items():
-        try:
-            mean_scores[name] = np.mean(score)
-        except:
-            pass
-
-    return data_source, mean_scores
+    
+    # Return the index and scores for proper alignment
+    return idx, data_source, score_lst
 
 
 def upload_to_wandb(metric_dict, model_name=None, dataset_name=None):
@@ -162,17 +155,29 @@ def upload_to_wandb(metric_dict, model_name=None, dataset_name=None):
 )
 def main(config):
     local_path = copy_to_local(config.data.path)
-    dataset = pd.read_parquet(
-        local_path,
-        columns=[
-            config.data.response_key,
-            config.data.data_source_key,
-            config.data.reward_model_key,
-        ],
-    )
-    responses = dataset[config.data.response_key]
-    data_sources = dataset[config.data.data_source_key]
-    reward_model_data = dataset[config.data.reward_model_key]
+    
+    # Check if we should save scores back to dataset
+    save_scores = config.data.get("save_scores", False)
+    
+    if save_scores:
+        # Read the full dataset when we need to save scores
+        dataset = pd.read_parquet(local_path)
+        responses = dataset[config.data.response_key]
+        data_sources = dataset[config.data.data_source_key]
+        reward_model_data = dataset[config.data.reward_model_key]
+    else:
+        # Original behavior - only read needed columns
+        dataset = pd.read_parquet(
+            local_path,
+            columns=[
+                config.data.response_key,
+                config.data.data_source_key,
+                config.data.reward_model_key,
+            ],
+        )
+        responses = dataset[config.data.response_key]
+        data_sources = dataset[config.data.data_source_key]
+        reward_model_data = dataset[config.data.reward_model_key]
 
     total = len(dataset)
 
@@ -187,28 +192,75 @@ def main(config):
     # Create remote tasks
     remote_tasks = [
         process_item.remote(
-            compute_score, data_sources[i], responses[i], reward_model_data[i]
+            compute_score, i, data_sources[i], responses[i], reward_model_data[i]
         )
         for i in range(total)
     ]
 
+    # Dictionary to store results by index (for score saving)
+    score_results = {} if save_scores else None
+
     # Process results as they come in
-    with tqdm(total=total) as pbar:
+    with tqdm(total=total, desc="Computing reward scores") as pbar:
         while len(remote_tasks) > 0:
             # Use ray.wait to get completed tasks
             done_ids, remote_tasks = ray.wait(remote_tasks)
             for result_id in done_ids:
-                data_source, mean_scores = ray.get(result_id)
-                data_source_reward[data_source].append(mean_scores)
+                idx, data_source, score_lst = ray.get(result_id)
+                
+                # Store scores if we need to save them
+                if save_scores:
+                    score_results[idx] = score_lst
+                
+                # Collect statistics (original behavior)
+                if score_lst:  # Check if scores exist
+                    df = pd.DataFrame(score_lst)
+                    mean_scores = {}
+                    for name, score in df.items():
+                        try:
+                            mean_scores[name] = np.mean(score)
+                        except:
+                            pass
+                    data_source_reward[data_source].append(mean_scores)
+                
                 pbar.update(1)
 
+    # Save scores back to dataset if requested
+    if save_scores and score_results:
+        print("Adding reward scores to dataset...")
+        
+        # Determine score column names from first result
+        first_scores = next(iter(score_results.values()))
+        if first_scores:
+            score_columns = list(pd.DataFrame(first_scores).columns)
+            
+            # Initialize score columns in dataset
+            for col in score_columns:
+                dataset[f"reward_{col}"] = None
+        
+        # Fill in the scores
+        for idx, score_lst in score_results.items():
+            if score_lst:
+                score_df = pd.DataFrame(score_lst)
+                for col in score_df.columns:
+                    # For multiple responses, take the mean of scores across responses
+                    dataset.at[idx, f"reward_{col}"] = score_df[col].mean()
+
+        # Save the updated dataset
+        output_path = config.data.get("output_path", config.data.path)
+        dataset.to_parquet(output_path, index=False)
+        print(f"Dataset with reward scores saved to: {output_path}")
+
+    # Print statistics (original behavior)
     metric_dict = {}
     for data_source, rewards in data_source_reward.items():
-        rewards = pd.DataFrame(rewards)
-        rewards = rewards.mean()
-        for k, v in rewards.items():
-            metric_dict[f"test_score/{data_source}/{k}"] = v
+        if rewards:  # Only process if we have rewards
+            rewards = pd.DataFrame(rewards)
+            rewards = rewards.mean()
+            for k, v in rewards.items():
+                metric_dict[f"test_score/{data_source}/{k}"] = v
 
+    print("Evaluation Statistics:")
     pprint.pprint(metric_dict)
     
     # Upload to wandb if environment variable is set
@@ -216,6 +268,9 @@ def main(config):
         model_name = os.getenv("MODEL_NAME")
         dataset_name = os.getenv("DATASET_NAME")
         upload_to_wandb(metric_dict, model_name, dataset_name)
+
+    # Shutdown Ray
+    ray.shutdown()
 
 
 if __name__ == "__main__":
