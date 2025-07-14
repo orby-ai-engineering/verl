@@ -15,6 +15,7 @@ python3 -m orby.trainer.main_generation \
     data.prompt_key=prompt \
     data.batch_size=1024 \
     +data.max_prompt_length=7680 \
+    +data.filter_overlong_prompts=false \
     data.n_samples=1 \
     data.output_path=$OUTPUT_FILE \
     model.path=$MODEL_PATH \

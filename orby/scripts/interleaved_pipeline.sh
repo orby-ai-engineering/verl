@@ -217,6 +217,7 @@ eval_step() {
         data.prompt_key=prompt \
         data.batch_size=1024 \
         +data.max_prompt_length=7680 \
+        +data.filter_overlong_prompts=false \
         data.n_samples=1 \
         data.output_path=$EVAL_OUTPUT_FILE \
         model.path=$model_path \
@@ -273,8 +274,8 @@ filter_step() {
         data.path=$input_parquet_with_rollout \
         data.medium_difficulty_output_path=$medium_difficulty_train_files \
         data.hard_difficulty_output_path=$hard_difficulty_train_files \
-        data.medium_difficulty_filter_bound=$medium_difficulty_filter_bound_str \
-        data.hard_difficulty_filter_bound=$hard_difficulty_filter_bound_str \
+        data.medium_difficulty_filter_bound="${medium_difficulty_filter_bound_str}" \
+        data.hard_difficulty_filter_bound="${hard_difficulty_filter_bound_str}" \
         data.balance_should_end=true \
         data.should_end_column="reward_model.ground_truth.should_end" \
         data.reward_score_column=$REWARD_SCORE_COLUMN

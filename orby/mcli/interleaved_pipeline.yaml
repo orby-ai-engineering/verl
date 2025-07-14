@@ -72,8 +72,8 @@ command: |
   export EVAL_OUTPUT_FILE=$LOCAL_DATA_DIR/tmp_eval_output.parquet
 
   # Set difficulty filter parameters
-  export MEDIUM_DIFFICULTY_FILTER_BOUND_STR="[0.51, 0.9]"
-  export HARD_DIFFICULTY_FILTER_BOUND_STR="[0.09, 0.5]"
+  export MEDIUM_DIFFICULTY_FILTER_BOUND_STR="[0.51,0.9]"
+  export HARD_DIFFICULTY_FILTER_BOUND_STR="[0.09,0.5]"
   export REWARD_SCORE_COLUMN="reward_score"
 
   # Set rollout parameters
