@@ -19,6 +19,8 @@ command: |
   export EXPERIMENT_NAME="SET EXPERIMENT NAME"
   export PROJECT_NAME=verl_interleaved
   export MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
+  # Set this if you want to skip the initial SFT step and start from a checkpoint
+  export BASE_SFT_CHECKPOINT=
 
   # Set the number of steps to interleave. Make sure the data directory contains the data for all steps.
   export INTERLEAVED_STEP_NUM=1
@@ -99,9 +101,6 @@ command: |
   export GLOO_SOCKET_IFNAME=$INTERFACE
   export HF_HUB_ENABLE_HF_TRANSFER=1
   export CUDA_LAUNCH_BLOCKING=1
-
-  # Download model
-  python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
 
   # Install verl lib: https://verl.readthedocs.io/en/latest/start/install.html
   pip3 install -e .[vllm]

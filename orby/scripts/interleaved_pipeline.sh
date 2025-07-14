@@ -263,7 +263,7 @@ filter_step() {
         +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
         +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE
 
-    echo "TOP LEVEL - Step 1.$i.1.1: filtering by difficulty ================================================="
+    echo "TOP LEVEL - Step 1.$i.1.1: filtering by score ================================================="
 
     input_num_rows=$(parquet-tools inspect $input_parquet_with_rollout | grep 'num_rows' | awk '{print $2}')
     echo "TOP LEVEL - Before filtering, the full rollout parquet has $input_num_rows rows"
@@ -318,20 +318,33 @@ echo "TOP LEVEL - Step 0: Initial SFT step =====================================
 export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
 
-# Run initial SFT step
-sft_step $INITIAL_SFT_EXPERIMENT_NAME \
-    $MODEL_NAME \
-    $SFT_TRAIN_BATCH_SIZE \
-    $INITIAL_SFT_TRAIN_FILES \
-    $SHARED_VAL_FILES \
-    $S3_INITIAL_SFT_CHECKPOINT_DIR \
-    $SFT_LR \
-    $ATTENTION_DROPOUT \
-    $SFT_MICRO_BATCH_SIZE_PER_GPU
+if [ -z "$BASE_SFT_CHECKPOINT" ]; then
+    # If BASE_SFT_CHECKPOINT is not set, we train from scratch
+    echo "TOP LEVEL - Step 0.0: training from scratch ========================================================"
+    # Download model
+    python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
 
-# Find and copy the initial SFT checkpoint with maximum steps
-export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
-echo "TOP LEVEL - Found initial SFT checkpoint: $MAX_STEPS_CHECKPOINT"
+    # Run initial SFT step
+    sft_step $INITIAL_SFT_EXPERIMENT_NAME \
+        $MODEL_NAME \
+        $SFT_TRAIN_BATCH_SIZE \
+        $INITIAL_SFT_TRAIN_FILES \
+        $SHARED_VAL_FILES \
+        $S3_INITIAL_SFT_CHECKPOINT_DIR \
+        $SFT_LR \
+        $ATTENTION_DROPOUT \
+        $SFT_MICRO_BATCH_SIZE_PER_GPU
+    
+    export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+else
+    # Otherwise we download the provided initial checkpoint
+    echo "TOP LEVEL - Step 0.0: downloading initial SFT checkpoint ==========================================="
+    export STEP_DIR=$(extract_step_from_checkpoint_dir $BASE_SFT_CHECKPOINT)
+    export MAX_STEPS_CHECKPOINT=$S3_INITIAL_SFT_CHECKPOINT_DIR/$STEP_DIR
+    aws s3 cp --no-progress $BASE_SFT_CHECKPOINT $MAX_STEPS_CHECKPOINT
+fi
+
+echo "TOP LEVEL - Collected initial SFT checkpoint: $MAX_STEPS_CHECKPOINT"
 
 # Copy the initial SFT checkpoint with maximum steps
 export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
