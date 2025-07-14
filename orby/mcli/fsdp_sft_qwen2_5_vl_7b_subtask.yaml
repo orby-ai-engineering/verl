@@ -24,8 +24,8 @@ command: |
   export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask_sft/$EXPERIMENT_NAME
 
   # Set training environment variables
-  export S3_TRAIN_FILES=s3://orby-osu-va/subtask_comparison_study/data/train/e_rm_sft_half_monolith/part-00000-tid-8144763134051005465-f53707e8-6872-46d5-bfa0-b4b40d46d576-25981-1-c000.snappy.parquet
-  export S3_VAL_FILES=s3://orby-osu-va/subtask_comparison_study/data/test/e_rm_full/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet
+  export S3_TRAIN_FILES=s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_with_response/part-00000-tid-3712964276653840281-af2210b2-e910-4427-aa16-9f2a2cfdae0a-844-1-c000.snappy.parquet
+  export S3_VAL_FILES=s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined_with_response/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet
   export TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined_with_response.parquet
   export VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/combined_with_response.parquet
 
