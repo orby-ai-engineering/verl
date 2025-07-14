@@ -168,7 +168,7 @@ def filter_parquet_chunks(
 
 
 @hydra.main(
-    config_path="../../verl/trainer/config", config_name="reward_filter", version_base=None
+    config_path="config", config_name="reward_filter", version_base=None
 )
 def main(config):
     # Get local copy of input file
