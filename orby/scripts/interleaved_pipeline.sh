@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail # Exit on any error or undefined variable
+set -x # Print each command before executing it
 
 # Function to find checkpoint with maximum steps from S3 directory
 find_max_step_checkpoint() {
