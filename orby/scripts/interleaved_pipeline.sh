@@ -371,6 +371,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # PER_STEP_VAL_FILES=$LOCAL_DATA_DIR/$i/test.parquet
     LOCAL_OUTPUT_PARQUET=$LOCAL_DATA_DIR/$i/train_rollout.parquet
     ROLLOUT_OUTPUT_PARQUET=$ROLLOUT_OUTPUT_DIR/$i/train_rollout.parquet
+    PER_STEP_GRPO_TRAIN_FILES=$LOCAL_DATA_DIR/$i/grpo_train.parquet
+    PER_STEP_SFT_TRAIN_FILES=$LOCAL_DATA_DIR/$i/sft_train.parquet
 
     # Start ray cluster and wait for all nodes
     bash orby/scripts/run_ray.sh $NUM_NODES
