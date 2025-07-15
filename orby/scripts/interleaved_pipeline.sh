@@ -247,8 +247,10 @@ filter_step() {
     local input_parquet_with_rollout="$1"
     local medium_difficulty_train_files="$2"
     local hard_difficulty_train_files="$3"
-    local medium_difficulty_filter_bound_str="$4"
-    local hard_difficulty_filter_bound_str="$5"
+    local medium_difficulty_filter_upper_bound="$4"
+    local medium_difficulty_filter_lower_bound="$5"
+    local hard_difficulty_filter_upper_bound="$6"
+    local hard_difficulty_filter_lower_bound="$7"
 
     echo "TOP LEVEL - Step 1.$i.1.0: generating scores ======================================================="
 
@@ -274,8 +276,10 @@ filter_step() {
         data.path=$input_parquet_with_rollout \
         data.medium_difficulty_output_path=$medium_difficulty_train_files \
         data.hard_difficulty_output_path=$hard_difficulty_train_files \
-        data.medium_difficulty_filter_bound="'${medium_difficulty_filter_bound_str}'" \
-        data.hard_difficulty_filter_bound="'${hard_difficulty_filter_bound_str}'" \
+        data.medium_difficulty_filter_upper_bound=$medium_difficulty_filter_upper_bound \
+        data.medium_difficulty_filter_lower_bound=$medium_difficulty_filter_lower_bound \
+        data.hard_difficulty_filter_upper_bound=$hard_difficulty_filter_upper_bound \
+        data.hard_difficulty_filter_lower_bound=$hard_difficulty_filter_lower_bound \
         data.balance_should_end=true \
         data.should_end_column="reward_model.ground_truth.should_end" \
         data.reward_score_column=$REWARD_SCORE_COLUMN
@@ -395,8 +399,10 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         filter_step $LOCAL_OUTPUT_PARQUET \
         $PER_STEP_GRPO_TRAIN_FILES \
         $PER_STEP_SFT_TRAIN_FILES \
-        $MEDIUM_DIFFICULTY_FILTER_BOUND_STR \
-        $HARD_DIFFICULTY_FILTER_BOUND_STR
+        $MEDIUM_DIFFICULTY_FILTER_UPPER_BOUND \
+        $MEDIUM_DIFFICULTY_FILTER_LOWER_BOUND \
+        $HARD_DIFFICULTY_FILTER_UPPER_BOUND \
+        $HARD_DIFFICULTY_FILTER_LOWER_BOUND
 
         # 3) Run GRPO step
         echo "TOP LEVEL - Step 1.$i.2: submitting GRPO job on node 0 ============================================="

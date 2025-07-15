@@ -7,21 +7,6 @@ import pyarrow.parquet as pq
 from verl.utils.fs import copy_to_local
 
 
-def parse_filter_bounds(bounds_str):
-    """Parse filter bounds string like '[0.51, 0.9]' into tuple."""
-    # If it's already a list/tuple, return it as tuple
-    if isinstance(bounds_str, (list, tuple)):
-        return tuple(bounds_str)
-
-    # If it's a string, try to parse it
-    if isinstance(bounds_str, str):
-        bounds = ast.literal_eval(bounds_str)
-        return tuple(bounds)
-
-    # If it is a ListConfig
-    return (bounds_str[0], bounds_str[1])
-
-
 def extract_should_end_values(df, should_end_column):
     """Extract should_end values from nested dictionary structure."""
     should_end_values = []
@@ -173,11 +158,17 @@ def filter_parquet_chunks(
 def main(config):
     # Get local copy of input file
     local_input_path = copy_to_local(config.data.path)
-    
+
     # Parse filter bounds
-    medium_bounds = parse_filter_bounds(config.data.medium_difficulty_filter_bound)
-    hard_bounds = parse_filter_bounds(config.data.hard_difficulty_filter_bound)
-    
+    medium_bounds = (
+        config.data.medium_difficulty_filter_lower_bound,
+        config.data.medium_difficulty_filter_upper_bound
+    )
+    hard_bounds = (
+        config.data.hard_difficulty_filter_lower_bound,
+        config.data.hard_difficulty_filter_upper_bound
+    )
+
     # Get balancing configuration
     balance_should_end = config.data.get("balance_should_end", True)
     should_end_column = config.data.get("should_end_column", "reward_model.ground_truth.should_end")
