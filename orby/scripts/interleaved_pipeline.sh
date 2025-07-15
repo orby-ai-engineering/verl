@@ -319,7 +319,11 @@ echo "TOP LEVEL - Step 0: Initial SFT step =====================================
 export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
 
-if [ -z "$BASE_SFT_CHECKPOINT" ]; then
+# If the S3_INITIAL_SFT_CHECKPOINT_DIR is not empty, we skip the initial SFT step (resume)
+if aws s3 ls $S3_INITIAL_SFT_CHECKPOINT_DIR | grep -q .; then
+    echo "TOP LEVEL - Step 0.0: Skip initial SFT step due to existing checkpoint (resume) ===================="
+    export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+elif [ -z "$BASE_SFT_CHECKPOINT" ]; then
     # If BASE_SFT_CHECKPOINT is not set, we train from scratch
     echo "TOP LEVEL - Step 0.0: training from scratch ========================================================"
     # Download model
@@ -335,13 +339,13 @@ if [ -z "$BASE_SFT_CHECKPOINT" ]; then
         $SFT_LR \
         $ATTENTION_DROPOUT \
         $SFT_MICRO_BATCH_SIZE_PER_GPU
-    
+
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
 else
     # Otherwise we download the provided initial checkpoint
     echo "TOP LEVEL - Step 0.0: downloading initial SFT checkpoint ==========================================="
     export STEP_DIR=$(extract_step_from_checkpoint_dir $BASE_SFT_CHECKPOINT)
-    export MAX_STEPS_CHECKPOINT=$S3_INITIAL_SFT_CHECKPOINT_DIR/$STEP_DIR
+    export MAX_STEPS_CHECKPOINT=${S3_INITIAL_SFT_CHECKPOINT_DIR}${STEP_DIR}
     aws s3 cp --no-progress --recursive $BASE_SFT_CHECKPOINT $MAX_STEPS_CHECKPOINT
 fi
 
