@@ -524,7 +524,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # Find the GRPO checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_GRPO_CHECKPOINT_DIR")
 
-    echo "TOP LEVEL - Step 1.$i.3: merging GRPO checkpoint on node 0 ========================================="
+    echo "TOP LEVEL - Step 1.$i.3: merging GRPO checkpoint on node 0 ========================================"
     run_on_node0_and_sync "checkpoint_merge_$i" \
         merge_checkpoint $MAX_STEPS_CHECKPOINT
 
