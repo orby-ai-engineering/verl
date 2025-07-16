@@ -538,9 +538,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         sleep 300
     fi
 
-    # Download the merged checkpoint
-    export LOCAL_GRPO_CHECKPOINT=$LOCAL_MODEL_DIR/grpo_${i}/$STEP_DIR
     # Download the GRPO checkpoint on all nodes
+    export LOCAL_GRPO_CHECKPOINT=$LOCAL_MODEL_DIR/grpo_${i}/$STEP_DIR
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT_HF $LOCAL_GRPO_CHECKPOINT
 
     # Evaluation
