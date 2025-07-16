@@ -1,6 +1,5 @@
 #!/bin/bash
 set -euo pipefail # Exit on any error or undefined variable
-set -x # Print each command before executing it
 
 # Function to find checkpoint with maximum steps from S3 directory
 find_max_step_checkpoint() {
@@ -210,6 +209,7 @@ grpo_step() {
 eval_step() {
     local eval_data_path="$1"
     local model_path="$2"
+    local current_index="$3"
 
     # Generation
     python3 -m orby.trainer.main_generation \
@@ -238,6 +238,9 @@ eval_step() {
         data.prompt_key=prompt \
         data.response_key=responses \
         +data.save_scores=false \
+        +data.interleave.store_to_local_parquet=true \
+        +data.interleave.local_parquet_path=$LOCAL_EVAL_RESULT_FILE \
+        +data.interleave.current_index=$current_index \
         custom_reward_function.path=$REWARD_FILE \
         custom_reward_function.name=$EVAL_REWARD_FN \
         +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \
@@ -371,7 +374,9 @@ fi
 # Evaluation
 echo "TOP LEVEL - Step 0.1: evaluating initial SFT checkpoint ============================================"
 if [ "$NODE_RANK" = "0" ]; then
-    eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT
+    eval_step $SHARED_VAL_FILES \
+    $LOCAL_SFT_CHECKPOINT \
+    "initial_sft"
 fi
 
 # Main loop
@@ -466,7 +471,9 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # Evaluation
     echo "TOP LEVEL - Step 1.$i.4: evaluating GRPO checkpoint $i on node 0 ==================================="
     if [ "$NODE_RANK" = "0" ]; then
-        eval_step $SHARED_VAL_FILES $LOCAL_GRPO_CHECKPOINT
+        eval_step $SHARED_VAL_FILES \
+        $LOCAL_GRPO_CHECKPOINT \
+        "${i}_grpo"
     fi
 
     # 4) Run SFT step
@@ -498,7 +505,9 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # evaluation
     echo "TOP LEVEL - Step 1.$i.6: evaluating SFT checkpoint $i on node 0 ===================================="
     if [ "$NODE_RANK" = "0" ]; then
-        eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT
+        eval_step $SHARED_VAL_FILES \
+        $LOCAL_SFT_CHECKPOINT \
+        "${i}_sft"
     fi
 done
 
@@ -507,6 +516,6 @@ echo "TOP LEVEL - Step 2: report results =======================================
 echo "All training rounds are done."
 echo "All checkpoints are available at: $S3_CHECKPOINT_DIR"
 echo "All rollout data are available at: $S3_ROLLOUT_OUTPUT_DIR"
-echo 
+echo "All evaluation results are available at: $S3_EVAL_OUTPUT_DIR"
 
 echo "TOP LEVEL - ALL DONE ==============================================================================="
