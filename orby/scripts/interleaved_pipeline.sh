@@ -444,12 +444,15 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     echo "TOP LEVEL - Step 1.$i: generating rollout data ====================================================="
 
     if aws s3 ls "$ROLLOUT_OUTPUT_PARQUET" >/dev/null 2>&1; then
+        # If the rollout output parquet already exists on S3, we skip the rollout step (resume)
         echo "TOP LEVEL - Step 1.$i.0a: skip rollout step due to existing rollout data (resume) =================="
+        if [ "$NODE_RANK" = "0" ]; then
+            aws s3 cp --no-progress $ROLLOUT_OUTPUT_PARQUET $LOCAL_OUTPUT_PARQUET
+        fi
     else
+        # Otherwise we generate the rollout data
         echo "TOP LEVEL - Step 1.$i.0b: submitting rollout job on node 0 ========================================="
         if [ "$NODE_RANK" = "0" ]; then
-            # If the rollout output parquet already exists on S3, we skip the rollout step (resume)
-
             generate_rollout_data $PER_STEP_TRAIN_FILES \
                 $LOCAL_OUTPUT_PARQUET \
                 $LOCAL_SFT_CHECKPOINT \
@@ -465,36 +468,52 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
 
     # 2) Filtering step
     echo "TOP LEVEL - Step 1.$i.1: filter by difficulty on node 0 ============================================"
-    if [ "$NODE_RANK" = "0" ]; then
-        filter_step $LOCAL_OUTPUT_PARQUET \
-            $LOCAL_PER_STEP_GRPO_TRAIN_FILES \
-            $LOCAL_PER_STEP_SFT_TRAIN_FILES \
-            $MEDIUM_DIFFICULTY_FILTER_UPPER_BOUND \
-            $MEDIUM_DIFFICULTY_FILTER_LOWER_BOUND \
-            $HARD_DIFFICULTY_FILTER_UPPER_BOUND \
-            $HARD_DIFFICULTY_FILTER_LOWER_BOUND
+    if aws s3 ls "$S3_PER_STEP_GRPO_TRAIN_FILES" >/dev/null 2>&1; then
+        # If the filtered datasets already exist on S3, we skip the filtering step (resume)
+        echo "TOP LEVEL - Step 1.$i.1a: skip filtering step due to existing filtered datasets (resume) ==========="
+        if [ "$NODE_RANK" = "0" ]; then
+            aws s3 cp --no-progress $S3_PER_STEP_GRPO_TRAIN_FILES $LOCAL_PER_STEP_GRPO_TRAIN_FILES
+            aws s3 cp --no-progress $S3_PER_STEP_SFT_TRAIN_FILES $LOCAL_PER_STEP_SFT_TRAIN_FILES
+        fi
+    else
+        # Otherwise we filter the datasets
+        if [ "$NODE_RANK" = "0" ]; then
+            filter_step $LOCAL_OUTPUT_PARQUET \
+                $LOCAL_PER_STEP_GRPO_TRAIN_FILES \
+                $LOCAL_PER_STEP_SFT_TRAIN_FILES \
+                $MEDIUM_DIFFICULTY_FILTER_UPPER_BOUND \
+                $MEDIUM_DIFFICULTY_FILTER_LOWER_BOUND \
+                $HARD_DIFFICULTY_FILTER_UPPER_BOUND \
+                $HARD_DIFFICULTY_FILTER_LOWER_BOUND
 
-        # Upload dataset to S3; only make one call on node 0
-        aws s3 cp --no-progress $LOCAL_PER_STEP_GRPO_TRAIN_FILES $S3_PER_STEP_GRPO_TRAIN_FILES
-        aws s3 cp --no-progress $LOCAL_PER_STEP_SFT_TRAIN_FILES $S3_PER_STEP_SFT_TRAIN_FILES
-        # Note: No synchronization needed here - Ray manages the distributed execution
+            # Upload dataset to S3; only make one call on node 0
+            aws s3 cp --no-progress $LOCAL_PER_STEP_GRPO_TRAIN_FILES $S3_PER_STEP_GRPO_TRAIN_FILES
+            aws s3 cp --no-progress $LOCAL_PER_STEP_SFT_TRAIN_FILES $S3_PER_STEP_SFT_TRAIN_FILES
+            # Note: No synchronization needed here - Ray manages the distributed execution
+        fi
     fi
 
     # 3) Run GRPO step
-    echo "TOP LEVEL - Step 1.$i.2: submitting GRPO job on node 0 ============================================="
-    if [ "$NODE_RANK" = "0" ]; then
-        grpo_step $GRPO_EXPERIMENT_NAME \
-            $LOCAL_PER_STEP_GRPO_TRAIN_FILES \
-            $SHARED_VAL_FILES \
-            $LOCAL_SFT_CHECKPOINT \
-            $GRPO_TRAIN_BATCH_SIZE \
-            $S3_GRPO_CHECKPOINT_DIR \
-            $GRPO_LR \
-            $GRPO_MICRO_BATCH_SIZE_PER_GPU
+    echo "TOP LEVEL - Step 1.$i.2: submitting GRPO job on node 0 ============================================"
+    if aws s3 ls "$S3_GRPO_CHECKPOINT_DIR" >/dev/null 2>&1; then
+        # If the GRPO checkpoint already exists on S3, we skip the GRPO step (resume)
+        echo "TOP LEVEL - Step 1.$i.2a: skip GRPO step due to existing GRPO checkpoint (resume) ================="
+    else
+        # Otherwise we run the GRPO step
+        if [ "$NODE_RANK" = "0" ]; then
+            grpo_step $GRPO_EXPERIMENT_NAME \
+                $LOCAL_PER_STEP_GRPO_TRAIN_FILES \
+                $SHARED_VAL_FILES \
+                $LOCAL_SFT_CHECKPOINT \
+                $GRPO_TRAIN_BATCH_SIZE \
+                $S3_GRPO_CHECKPOINT_DIR \
+                $GRPO_LR \
+                $GRPO_MICRO_BATCH_SIZE_PER_GPU
 
-        # Stop ray cluster
-        ray stop
-        # Note: No synchronization needed here - Ray manages the distributed execution
+            # Stop ray cluster
+            ray stop
+            # Note: No synchronization needed here - Ray manages the distributed execution
+        fi
     fi
 
     # Find the GRPO checkpoint with maximum steps
@@ -541,9 +560,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$SFT_CHECKPOINT_DIR")
     export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
     export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/sft_${i}/$STEP_DIR
-    # Download only on node 0
-    run_on_node0_and_sync "sft_checkpoint_download_$i" \
-        aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+    # Download the SFT checkpoint on all nodes
+    aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 
     # evaluation
     echo "TOP LEVEL - Step 1.$i.6: evaluating SFT checkpoint $i on node 0 ===================================="
