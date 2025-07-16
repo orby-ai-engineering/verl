@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail # Exit on any error or undefined variable
 
+# Create all directories
+mkdir -p $LOCAL_DATA_DIR
+mkdir -p $LOCAL_MODEL_DIR
+mkdir -p $LOCAL_EVAL_DIR
+
 # Function to find checkpoint with maximum steps from S3 directory
 find_max_step_checkpoint() {
     local s3_dir="$1"
@@ -329,7 +334,7 @@ export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
 export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 
 # If the S3_INITIAL_SFT_CHECKPOINT_DIR is not empty, we skip the initial SFT step (resume)
-if aws s3 ls $S3_INITIAL_SFT_CHECKPOINT_DIR | grep -q .; then
+if aws s3 ls "$S3_INITIAL_SFT_CHECKPOINT_DIR" >/dev/null 2>&1; then
     echo "TOP LEVEL - Step 0.0a: Skip initial SFT step due to existing checkpoint (resume) ==================="
     export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
 elif [ -z "$BASE_SFT_CHECKPOINT" ]; then
@@ -404,17 +409,23 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # 1) Run rollout using the previous checkpoint
     echo "TOP LEVEL - Step 1.$i: generating rollout data ====================================================="
 
-    echo "TOP LEVEL - Step 1.$i.0: submitting rollout job on node 0 =========================================="
-    if [ "$NODE_RANK" = "0" ]; then
-        generate_rollout_data $PER_STEP_TRAIN_FILES \
-        $LOCAL_OUTPUT_PARQUET \
-        $LOCAL_SFT_CHECKPOINT \
-        $TEMPERATURE \
-        $N_SAMPLES \
-        $ROLLOUT_BATCH_SIZE
+    if aws s3 ls "$ROLLOUT_OUTPUT_PARQUET" >/dev/null 2>&1; then
+        echo "TOP LEVEL - Step 1.$i.0a: skip rollout step due to existing rollout data (resume) =================="
+    else
+        echo "TOP LEVEL - Step 1.$i.0b: submitting rollout job on node 0 ========================================="
+        if [ "$NODE_RANK" = "0" ]; then
+            # If the rollout output parquet already exists on S3, we skip the rollout step (resume)
 
-        # Upload dataset to S3; only make one call on node 0
-        aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
+            generate_rollout_data $PER_STEP_TRAIN_FILES \
+            $LOCAL_OUTPUT_PARQUET \
+            $LOCAL_SFT_CHECKPOINT \
+            $TEMPERATURE \
+            $N_SAMPLES \
+            $ROLLOUT_BATCH_SIZE
+
+            # Upload dataset to S3; only make one call on node 0
+            aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
+        fi
     fi
 
     # 2) Filtering step
