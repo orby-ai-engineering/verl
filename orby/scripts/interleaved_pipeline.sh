@@ -1,4 +1,5 @@
 #!/bin/bash
+set -u # Exit on undefined variable
 
 # Clean up synchronization flags on in case of resume
 if [ "$NODE_RANK" = "0" ]; then
@@ -345,11 +346,7 @@ filter_step() {
 
 function merge_checkpoint() {
     local max_steps_checkpoint="$1"
-    aws s3 ls $max_steps_checkpoint/hf
-    if [ $? -eq 0 ]; then
-        echo "TOP LEVEL - GRPO checkpoint is already available on S3: $max_steps_checkpoint/hf"
-        return 0
-    fi
+
     python3 orby/scripts/model_merger.py merge \
         --backend fsdp \
         --hf_model_path Qwen/Qwen2.5-VL-7B-Instruct \
@@ -378,7 +375,7 @@ export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 
 # If the S3_INITIAL_SFT_CHECKPOINT_DIR is not empty, we skip the initial SFT step (resume)
 if aws s3 ls "$S3_INITIAL_SFT_CHECKPOINT_DIR" >/dev/null 2>&1; then
-    echo "TOP LEVEL - Step 0.0a: Skip initial SFT step due to existing checkpoint (resume) ==================="
+    echo "TOP LEVEL - Skip initial SFT step due to existing checkpoint (resume)"
     export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
 elif [ -z "$BASE_SFT_CHECKPOINT" ]; then
     # If BASE_SFT_CHECKPOINT is not set, we train from scratch
@@ -448,7 +445,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
 
     if aws s3 ls "$ROLLOUT_OUTPUT_PARQUET" >/dev/null 2>&1; then
         # If the rollout output parquet already exists on S3, we skip the rollout step (resume)
-        echo "TOP LEVEL - Step 1.$i.0a: skip rollout step due to existing rollout data (resume) =================="
+        echo "TOP LEVEL - Skip rollout step due to existing rollout data (resume)"
         if [ "$NODE_RANK" = "0" ]; then
             aws s3 cp --no-progress $ROLLOUT_OUTPUT_PARQUET $LOCAL_OUTPUT_PARQUET
         fi
@@ -473,7 +470,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     echo "TOP LEVEL - Step 1.$i.1: filter by difficulty on node 0 ============================================"
     if aws s3 ls "$S3_PER_STEP_GRPO_TRAIN_FILES" >/dev/null 2>&1; then
         # If the filtered datasets already exist on S3, we skip the filtering step (resume)
-        echo "TOP LEVEL - Step 1.$i.1a: skip filtering step due to existing filtered datasets (resume) ==========="
+        echo "TOP LEVEL - Skip filtering step due to existing filtered datasets (resume)"
         if [ "$NODE_RANK" = "0" ]; then
             aws s3 cp --no-progress $S3_PER_STEP_GRPO_TRAIN_FILES $LOCAL_PER_STEP_GRPO_TRAIN_FILES
             aws s3 cp --no-progress $S3_PER_STEP_SFT_TRAIN_FILES $LOCAL_PER_STEP_SFT_TRAIN_FILES
@@ -500,7 +497,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     echo "TOP LEVEL - Step 1.$i.2: submitting GRPO job on node 0 ============================================"
     if aws s3 ls "$S3_GRPO_CHECKPOINT_DIR" >/dev/null 2>&1; then
         # If the GRPO checkpoint already exists on S3, we skip the GRPO step (resume)
-        echo "TOP LEVEL - Step 1.$i.2a: skip GRPO step due to existing GRPO checkpoint (resume) ================="
+        echo "TOP LEVEL - Skip GRPO step due to existing GRPO checkpoint (resume)"
     else
         # Otherwise we run the GRPO step
         if [ "$NODE_RANK" = "0" ]; then
@@ -521,23 +518,30 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         ray stop
     fi
 
+    echo "TOP LEVEL - Step 1.$i.3: merging GRPO checkpoint on node 0 ========================================"
     # Find the GRPO checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_GRPO_CHECKPOINT_DIR")
+    export MAX_STEPS_CHECKPOINT_HF="${MAX_STEPS_CHECKPOINT}/hf"
+    export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
 
-    echo "TOP LEVEL - Step 1.$i.3: merging GRPO checkpoint on node 0 ========================================"
-    run_on_node0_and_sync "checkpoint_merge_$i" \
-        merge_checkpoint $MAX_STEPS_CHECKPOINT
+    # If the GRPO checkpoint already exists on S3, we skip the merging step (resume)
+    if aws s3 ls "$MAX_STEPS_CHECKPOINT_HF" >/dev/null 2>&1; then
+        echo "TOP LEVEL - Skip merging step due to existing GRPO checkpoint (resume)"
+    else
+        # Otherwise we merge the GRPO checkpoint
+        run_on_node0_and_sync "checkpoint_merge_$i" \
+            merge_checkpoint $MAX_STEPS_CHECKPOINT
 
-    # Wait for the checkpoint on other nodes.
-    wait_for_hf_checkpoint $MAX_STEPS_CHECKPOINT/hf
-    # Wait for 300 seconds to make sure the checkpoint is fully uploaded
-    sleep 300
+        # Wait for the checkpoint on other nodes.
+        wait_for_hf_checkpoint $MAX_STEPS_CHECKPOINT_HF
+        # Wait for 300 seconds to make sure the checkpoint is fully uploaded
+        sleep 300
+    fi
 
     # Download the merged checkpoint
-    export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
     export LOCAL_GRPO_CHECKPOINT=$LOCAL_MODEL_DIR/grpo_${i}/$STEP_DIR
     # Download the GRPO checkpoint on all nodes
-    aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
+    aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT_HF $LOCAL_GRPO_CHECKPOINT
 
     # Evaluation
     echo "TOP LEVEL - Step 1.$i.4: evaluating GRPO checkpoint $i on node 0 ==================================="
