@@ -441,8 +441,7 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${i}/grpo/
 
     # 1) Run rollout using the previous checkpoint
-    echo "TOP LEVEL - Step 1.$i: generating rollout data ====================================================="
-
+    echo "TOP LEVEL - Step 1.$i.0: generating rollout data ====================================================="
     if aws s3 ls "$ROLLOUT_OUTPUT_PARQUET" >/dev/null 2>&1; then
         # If the rollout output parquet already exists on S3, we skip the rollout step (resume)
         echo "TOP LEVEL - Skip rollout step due to existing rollout data (resume)"
@@ -451,7 +450,6 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         fi
     else
         # Otherwise we generate the rollout data
-        echo "TOP LEVEL - Step 1.$i.0b: submitting rollout job on node 0 ========================================="
         if [ "$NODE_RANK" = "0" ]; then
             generate_rollout_data $PER_STEP_TRAIN_FILES \
                 $LOCAL_OUTPUT_PARQUET \
