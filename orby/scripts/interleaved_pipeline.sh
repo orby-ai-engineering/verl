@@ -589,11 +589,10 @@ echo "TOP LEVEL - Step 2: report results =======================================
 if [ "$NODE_RANK" = "0" ]; then
     aws s3 cp --no-progress $LOCAL_EVAL_RESULT_FILE $S3_EVAL_RESULT_FILE
     # Clean up synchronization flags
+    sleep 60 # Wait to make sure worker nodes sees the final eval complete flag
     echo "TOP LEVEL - Cleaning up synchronization flags..."
     aws s3 rm --recursive "$S3_CHECKPOINT_DIR/sync_flags/" >/dev/null 2>&1 || true
-    signal_step_complete "final_report"
 fi    
-wait_for_step_complete "final_report"
 
 echo "All training rounds are done."
 echo "All checkpoints are available at: $S3_CHECKPOINT_DIR"
@@ -601,3 +600,5 @@ echo "All rollout data are available at: $S3_ROLLOUT_OUTPUT_DIR"
 echo "All evaluation results are available at: $S3_EVAL_RESULT_DIR"
 
 echo "TOP LEVEL - ALL DONE ==============================================================================="
+
+exit 0
