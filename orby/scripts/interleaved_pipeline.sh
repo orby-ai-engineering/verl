@@ -513,9 +513,14 @@ done
 
 # Final report
 echo "TOP LEVEL - Step 2: report results ================================================================="
+# Upload the evaluation results to S3 on node 0
+if [ "$NODE_RANK" = "0" ]; then
+    aws s3 cp --no-progress $LOCAL_EVAL_RESULT_FILE $S3_EVAL_RESULT_FILE
+fi
+
 echo "All training rounds are done."
 echo "All checkpoints are available at: $S3_CHECKPOINT_DIR"
 echo "All rollout data are available at: $S3_ROLLOUT_OUTPUT_DIR"
-echo "All evaluation results are available at: $S3_EVAL_OUTPUT_DIR"
+echo "All evaluation results are available at: $S3_EVAL_RESULT_DIR"
 
 echo "TOP LEVEL - ALL DONE ==============================================================================="
