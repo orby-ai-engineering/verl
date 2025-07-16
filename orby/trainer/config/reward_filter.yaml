@@ -1,0 +1,11 @@
+data:
+  path: /tmp/input_with_rollout.parquet
+  medium_difficulty_output_path: /tmp/medium_difficulty_train.parquet
+  hard_difficulty_output_path: /tmp/hard_difficulty_train.parquet
+  medium_difficulty_filter_upper_bound: 0.9
+  medium_difficulty_filter_lower_bound: 0.51
+  hard_difficulty_filter_upper_bound: 0.5
+  hard_difficulty_filter_lower_bound: 0.09
+  balance_should_end: true
+  should_end_column: "reward_model.ground_truth.should_end"
+  reward_score_column: "reward_score"

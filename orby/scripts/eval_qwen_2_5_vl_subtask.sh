@@ -15,6 +15,7 @@ python3 -m orby.trainer.main_generation \
     data.prompt_key=prompt \
     data.batch_size=1024 \
     +data.max_prompt_length=7680 \
+    +data.filter_overlong_prompts=false \
     data.n_samples=1 \
     data.output_path=$OUTPUT_FILE \
     model.path=$MODEL_PATH \
@@ -32,6 +33,7 @@ python3 -m orby.trainer.main_eval \
     data.path=$OUTPUT_FILE \
     data.prompt_key=prompt \
     data.response_key=responses \
+    +data.save_scores=True \
     custom_reward_function.path=$REWARD_FILE \
     custom_reward_function.name=$REWARD_FN \
     +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \

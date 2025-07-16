@@ -342,11 +342,12 @@ class vLLMRollout(BaseRollout):
 
         # Orby change: do not return multimodal data which contains large pixels.
         # Note: multimodal data is needed for training but not for inference.
-        if self.config.get("remove_multimodal_data_from_rollout", False):
+        if self.config.get("remove_multimodal_data_from_rollout", True):
             if "multi_modal_data" in non_tensor_batch:
                 del non_tensor_batch["multi_modal_data"]
             if "multi_modal_inputs" in non_tensor_batch:
                 del non_tensor_batch["multi_modal_inputs"]
+
         return DataProto(batch=batch, non_tensor_batch=non_tensor_batch)
 
 
