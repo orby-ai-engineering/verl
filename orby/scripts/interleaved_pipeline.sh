@@ -1,5 +1,4 @@
 #!/bin/bash
-set -euo pipefail # Exit on any error or undefined variable
 
 # Clean up synchronization flags on in case of resume
 if [ "$NODE_RANK" = "0" ]; then
