@@ -405,6 +405,7 @@ else
     # Copy the initial SFT checkpoint with maximum steps; only make one call on node 0
     run_on_node0_and_sync "base_sft_checkpoint_copy" \
         aws s3 cp --no-progress --recursive $BASE_SFT_CHECKPOINT $S3_INIT_SFT_CHECKPOINT
+    sleep 60 # Wait to make sure the initial SFT checkpoint is fully uploaded
 fi
 
 echo "TOP LEVEL - Collected initial SFT checkpoint: $S3_INIT_SFT_CHECKPOINT"
