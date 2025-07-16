@@ -201,10 +201,6 @@ class SFTDataset(Dataset):
             dataframes.append(dataframe)
         self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
 
-        # Shuffle the dataset if configured
-        self.dataframe = self.dataframe.shuffle(seed=42)
-        logger.info(f"Shuffled dataset with seed 42")
-
         print(f"dataset len: {len(self.dataframe)}")
 
         # filter out too long prompts
