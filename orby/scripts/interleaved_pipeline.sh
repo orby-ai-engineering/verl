@@ -87,6 +87,7 @@ run_on_node0_and_sync() {
     wait_for_step_complete "$step_name"
 }
 
+# Helper functions
 extract_step_from_checkpoint_dir() {
     local checkpoint_dir="$1"
     echo $checkpoint_dir | grep -o "global_step_[0-9]*"
@@ -369,6 +370,7 @@ function wait_for_hf_checkpoint() {
 }
 
 
+# Start of the pipeline
 echo "TOP LEVEL - Step 0: Initial SFT step ==============================================================="
 export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
 export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
