@@ -322,16 +322,16 @@ function wait_for_hf_checkpoint() {
 
 
 echo "TOP LEVEL - Step 0: Initial SFT step ==============================================================="
-export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
+export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 
 # If the S3_INITIAL_SFT_CHECKPOINT_DIR is not empty, we skip the initial SFT step (resume)
 if aws s3 ls $S3_INITIAL_SFT_CHECKPOINT_DIR | grep -q .; then
-    echo "TOP LEVEL - Step 0.0: Skip initial SFT step due to existing checkpoint (resume) ===================="
-    export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+    echo "TOP LEVEL - Step 0.0a: Skip initial SFT step due to existing checkpoint (resume) ==================="
+    export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
 elif [ -z "$BASE_SFT_CHECKPOINT" ]; then
     # If BASE_SFT_CHECKPOINT is not set, we train from scratch
-    echo "TOP LEVEL - Step 0.0: training from scratch ========================================================"
+    echo "TOP LEVEL - Step 0.0b: training from scratch ======================================================="
     # Download model
     python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
 
@@ -346,24 +346,33 @@ elif [ -z "$BASE_SFT_CHECKPOINT" ]; then
         $ATTENTION_DROPOUT \
         $SFT_MICRO_BATCH_SIZE_PER_GPU
 
-    export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+    export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
 else
     # Otherwise we download the provided initial checkpoint
-    echo "TOP LEVEL - Step 0.0: downloading initial SFT checkpoint ==========================================="
+    echo "TOP LEVEL - Step 0.0c: downloading initial SFT checkpoint =========================================="
     export STEP_DIR=$(extract_step_from_checkpoint_dir $BASE_SFT_CHECKPOINT)
-    export MAX_STEPS_CHECKPOINT=${S3_INITIAL_SFT_CHECKPOINT_DIR}${STEP_DIR}
-    aws s3 cp --no-progress --recursive $BASE_SFT_CHECKPOINT $MAX_STEPS_CHECKPOINT
+    export S3_INIT_SFT_CHECKPOINT=${S3_INITIAL_SFT_CHECKPOINT_DIR}${STEP_DIR}
+    # Copy the initial SFT checkpoint with maximum steps; only make one call on node 0
+    if [ "$NODE_RANK" = "0" ]; then
+        aws s3 cp --no-progress --recursive $BASE_SFT_CHECKPOINT $S3_INIT_SFT_CHECKPOINT
+    fi
 fi
 
-echo "TOP LEVEL - Collected initial SFT checkpoint: $MAX_STEPS_CHECKPOINT"
+echo "TOP LEVEL - Collected initial SFT checkpoint: $S3_INIT_SFT_CHECKPOINT"
 
 # Copy the initial SFT checkpoint with maximum steps
-export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
+export STEP_DIR=$(extract_step_from_checkpoint_dir $S3_INIT_SFT_CHECKPOINT)
 export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/initial_sft/$STEP_DIR
-aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+# Download the SFT checkpoint only to node 0
+if [ "$NODE_RANK" = "0" ]; then
+    aws s3 cp --no-progress --recursive $S3_INIT_SFT_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+fi
 
 # Evaluation
-eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT
+echo "TOP LEVEL - Step 0.1: evaluating initial SFT checkpoint ============================================"
+if [ "$NODE_RANK" = "0" ]; then
+    eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT
+fi
 
 # Main loop
 echo "TOP LEVEL - Step 1: Main loop ======================================================================"
@@ -372,22 +381,26 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # We use shared validation files for all steps.
     # PER_STEP_VAL_FILES=$LOCAL_DATA_DIR/$i/test.parquet
     LOCAL_OUTPUT_PARQUET=$LOCAL_DATA_DIR/$i/train_rollout.parquet
-    ROLLOUT_OUTPUT_PARQUET=$ROLLOUT_OUTPUT_DIR/$i/train_rollout.parquet
-    PER_STEP_GRPO_TRAIN_FILES=$LOCAL_DATA_DIR/$i/grpo_train.parquet
-    PER_STEP_SFT_TRAIN_FILES=$LOCAL_DATA_DIR/$i/sft_train.parquet
+    ROLLOUT_OUTPUT_PARQUET=$S3_ROLLOUT_OUTPUT_DIR/$i/train_rollout.parquet
+
+    # We store the filtered datasets for each step and upload them to S3 for workers to download
+    LOCAL_PER_STEP_GRPO_TRAIN_FILES=$LOCAL_DATA_DIR/$i/grpo_train.parquet
+    LOCAL_PER_STEP_SFT_TRAIN_FILES=$LOCAL_DATA_DIR/$i/sft_train.parquet
+    S3_PER_STEP_GRPO_TRAIN_FILES=$S3_ROLLOUT_OUTPUT_DIR/$i/grpo_train.parquet
+    S3_PER_STEP_SFT_TRAIN_FILES=$S3_ROLLOUT_OUTPUT_DIR/$i/sft_train.parquet
 
     # Start ray cluster and wait for all nodes
     bash orby/scripts/run_ray.sh $NUM_NODES
 
     # Export vars for all nodes
     export GRPO_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_grpo
-    export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${GRPO_EXPERIMENT_NAME}/
+    export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${i}/grpo/
 
     # 1) Run rollout using the previous checkpoint
     echo "TOP LEVEL - Step 1.$i: generating rollout data ====================================================="
 
+    echo "TOP LEVEL - Step 1.$i.0: submitting rollout job on node 0 =========================================="
     if [ "$NODE_RANK" = "0" ]; then
-        echo "TOP LEVEL - Step 1.$i.0: submitting rollout job on node 0 =========================================="
         generate_rollout_data $PER_STEP_TRAIN_FILES \
         $LOCAL_OUTPUT_PARQUET \
         $LOCAL_SFT_CHECKPOINT \
@@ -395,23 +408,31 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
         $N_SAMPLES \
         $ROLLOUT_BATCH_SIZE
 
-        # Upload dataset to S3
+        # Upload dataset to S3; only make one call on node 0
         aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
+    fi
 
-        # 2) Filtering step
-        echo "TOP LEVEL - Step 1.$i.1: filter by difficulty on node 0 ============================================"
+    # 2) Filtering step
+    echo "TOP LEVEL - Step 1.$i.1: filter by difficulty on node 0 ============================================"
+    if [ "$NODE_RANK" = "0" ]; then
         filter_step $LOCAL_OUTPUT_PARQUET \
-        $PER_STEP_GRPO_TRAIN_FILES \
-        $PER_STEP_SFT_TRAIN_FILES \
+        $LOCAL_PER_STEP_GRPO_TRAIN_FILES \
+        $LOCAL_PER_STEP_SFT_TRAIN_FILES \
         $MEDIUM_DIFFICULTY_FILTER_UPPER_BOUND \
         $MEDIUM_DIFFICULTY_FILTER_LOWER_BOUND \
         $HARD_DIFFICULTY_FILTER_UPPER_BOUND \
         $HARD_DIFFICULTY_FILTER_LOWER_BOUND
 
-        # 3) Run GRPO step
-        echo "TOP LEVEL - Step 1.$i.2: submitting GRPO job on node 0 ============================================="
+        # Upload dataset to S3; only make one call on node 0
+        aws s3 cp --no-progress $LOCAL_PER_STEP_GRPO_TRAIN_FILES $S3_PER_STEP_GRPO_TRAIN_FILES
+        aws s3 cp --no-progress $LOCAL_PER_STEP_SFT_TRAIN_FILES $S3_PER_STEP_SFT_TRAIN_FILES
+    fi
+
+    # 3) Run GRPO step
+    echo "TOP LEVEL - Step 1.$i.2: submitting GRPO job on node 0 ============================================="
+    if [ "$NODE_RANK" = "0" ]; then
         grpo_step $GRPO_EXPERIMENT_NAME \
-        $PER_STEP_GRPO_TRAIN_FILES \
+        $LOCAL_PER_STEP_GRPO_TRAIN_FILES \
         $SHARED_VAL_FILES \
         $LOCAL_SFT_CHECKPOINT \
         $GRPO_TRAIN_BATCH_SIZE \
@@ -426,8 +447,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # Find the GRPO checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_GRPO_CHECKPOINT_DIR")
 
+    echo "TOP LEVEL - Step 1.$i.3: merging GRPO checkpoint on node 0 ========================================="
     if [ "$NODE_RANK" = "0" ]; then
-        echo "TOP LEVEL - Step 1.$i.3: merging GRPO checkpoint on node 0 ========================================="
         merge_checkpoint $MAX_STEPS_CHECKPOINT
     fi
 
@@ -439,19 +460,26 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     # Download the merged checkpoint
     export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
     export LOCAL_GRPO_CHECKPOINT=$LOCAL_MODEL_DIR/grpo_${i}/$STEP_DIR
+    # Download the GRPO checkpoint on all nodes
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
 
     # Evaluation
-    eval_step $SHARED_VAL_FILES $LOCAL_GRPO_CHECKPOINT
+    echo "TOP LEVEL - Step 1.$i.4: evaluating GRPO checkpoint $i on node 0 ==================================="
+    if [ "$NODE_RANK" = "0" ]; then
+        eval_step $SHARED_VAL_FILES $LOCAL_GRPO_CHECKPOINT
+    fi
 
     # 4) Run SFT step
-    echo "TOP LEVEL - Step 1.$i.4: running SFT ==============================================================="
+    echo "TOP LEVEL - Step 1.$i.5: running SFT ==============================================================="
     export SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_sft
-    export SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${SFT_EXPERIMENT_NAME}/
+    export SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${i}/sft/
+    # Download the SFT training dataset on all nodes
+    aws s3 cp --no-progress $S3_PER_STEP_SFT_TRAIN_FILES $LOCAL_PER_STEP_SFT_TRAIN_FILES
+
     sft_step $SFT_EXPERIMENT_NAME \
     $LOCAL_GRPO_CHECKPOINT \
     $SFT_TRAIN_BATCH_SIZE \
-    $PER_STEP_SFT_TRAIN_FILES \
+    $LOCAL_PER_STEP_SFT_TRAIN_FILES \
     $SHARED_VAL_FILES \
     $SFT_CHECKPOINT_DIR \
     $SFT_LR \
@@ -462,8 +490,23 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$SFT_CHECKPOINT_DIR")
     export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
     export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/sft_${i}/$STEP_DIR
-    aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+    # Download only on node 0
+    if [ "$NODE_RANK" = "0" ]; then
+        aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+    fi
 
-    # Evaluation
-    eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT
+    # evaluation
+    echo "TOP LEVEL - Step 1.$i.6: evaluating SFT checkpoint $i on node 0 ===================================="
+    if [ "$NODE_RANK" = "0" ]; then
+        eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT
+    fi
 done
+
+# Final report
+echo "TOP LEVEL - Step 2: report results ================================================================="
+echo "All training rounds are done."
+echo "All checkpoints are available at: $S3_CHECKPOINT_DIR"
+echo "All rollout data are available at: $S3_ROLLOUT_OUTPUT_DIR"
+echo 
+
+echo "TOP LEVEL - ALL DONE ==============================================================================="

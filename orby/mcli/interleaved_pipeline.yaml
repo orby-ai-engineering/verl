@@ -79,7 +79,7 @@ command: |
   export REWARD_SCORE_COLUMN="reward_score"
 
   # Set rollout parameters
-  export ROLLOUT_OUTPUT_DIR=s3://orby-llm/interleaved/rollout/$EXPERIMENT_NAME
+  export S3_ROLLOUT_OUTPUT_DIR=s3://orby-llm/interleaved/rollout/$EXPERIMENT_NAME
   export N_SAMPLES=4
   export TEMPERATURE=0.7
 
