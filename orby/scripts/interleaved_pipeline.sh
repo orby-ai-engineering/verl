@@ -492,8 +492,8 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
             # Upload dataset to S3; only make one call on node 0
             aws s3 cp --no-progress $LOCAL_PER_STEP_GRPO_TRAIN_FILES $S3_PER_STEP_GRPO_TRAIN_FILES
             aws s3 cp --no-progress $LOCAL_PER_STEP_SFT_TRAIN_FILES $S3_PER_STEP_SFT_TRAIN_FILES
-            # Note: No synchronization needed here - Ray manages the distributed execution
         fi
+        # Note: No synchronization needed here - Ray manages the distributed execution
     fi
 
     # 3) Run GRPO step
@@ -512,11 +512,13 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
                 $S3_GRPO_CHECKPOINT_DIR \
                 $GRPO_LR \
                 $GRPO_MICRO_BATCH_SIZE_PER_GPU
-
-            # Stop ray cluster
-            ray stop
-            # Note: No synchronization needed here - Ray manages the distributed execution
         fi
+        # Note: No synchronization needed here - Ray manages the distributed execution
+    fi
+
+    # Stop ray cluster
+    if [ "$NODE_RANK" = "0" ]; then
+        ray stop
     fi
 
     # Find the GRPO checkpoint with maximum steps
