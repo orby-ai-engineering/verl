@@ -40,13 +40,12 @@ logger = logging.getLogger(__name__)
 def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
     """
     Remove unnecessary fields from dataset to keep only those used during training.
-    Also standardizes image format across different datasets.
+    Also standardizes image format and schema across different datasets.
     
     Required fields for training:
     - prompt: Used to build messages for chat template
     - response: Used to extend messages for SFT training
     - images: Used for multimodal processing
-    - videos: Used for multimodal processing  
     - data_source: Used for logging
     
     Args:
@@ -77,8 +76,8 @@ def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
     # Standardize image format if needed
     if 'images' in dataset.features:
         # Check if images are in Dataset 2 format (list of dicts with bytes/path)
-        # Dataset 2 format: [{'bytes': binary, 'path': int32}]
-        # Dataset 1 format: Sequence(feature=Image(mode=None, decode=True))
+        # Dataset subtask_direct_distill format: [{'bytes': binary, 'path': int32}]
+        # Dataset uground,os_atlas format: Sequence(feature=Image(mode=None, decode=True))
         if type(dataset.features['images']) == list:
             logger.info("Converting image format from [{'bytes': binary, 'path': int32}] to Sequence[Image]")
             # Cast the images column to the new Sequence type
@@ -87,21 +86,8 @@ def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
     # Standardize response message key order for subtask_direct_distill dataset
     if 'data_source' in dataset.features and dataset['data_source'][0] == 'subtask_direct_distill':
         logger.info("Standardizing response message key order")
-        
-        # def reorder_response(example):
-        #     resp = example["response"][0]
-        #     example["response"] = [
-        #         {
-        #             "content": resp['content'],
-        #             "role": resp['role']
-        #         }
-        #     ]
-        #     return example
-        
-        # dataset = dataset.map(reorder_response, desc="Standardizing response key order")
-        
+                
         # Explicitly cast the response column to ensure schema compatibility
-        # For list of dicts, we need to cast the entire dataset with new features
         response_features = [{
             "content": datasets.Value("string"),
             "role": datasets.Value("string")
