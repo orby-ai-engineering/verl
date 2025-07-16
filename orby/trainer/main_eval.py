@@ -269,6 +269,23 @@ def main(config):
         dataset_name = os.getenv("DATASET_NAME")
         upload_to_wandb(metric_dict, model_name, dataset_name)
 
+    # Store to local parquet as a row if requested
+    interleave_config: dict = config.data.get("interleave", {})
+    if interleave_config.get("store_to_local_parquet", False):    
+        parquet_path = interleave_config.get(
+            "local_parquet_path",
+            "tmp_eval_results.parquet"
+        )
+        if os.path.exists(parquet_path):
+            df = pd.read_parquet(parquet_path)
+        else:
+            df = pd.DataFrame()
+
+        index = interleave_config.get("current_index", df.shape[0])
+        row = { "index": index, **metric_dict }
+        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+        df.to_parquet(parquet_path, index=False)
+
     # Shutdown Ray
     ray.shutdown()
 
