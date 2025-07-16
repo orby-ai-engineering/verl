@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail # Exit on any error or undefined variable
 
+# Clean up synchronization flags on in case of resume
+if [ "$NODE_RANK" = "0" ]; then
+    aws s3 rm --recursive "$S3_CHECKPOINT_DIR/sync_flags/" >/dev/null 2>&1 || true
+fi
+
 # Create all directories
 mkdir -p $LOCAL_DATA_DIR
 mkdir -p $LOCAL_MODEL_DIR
