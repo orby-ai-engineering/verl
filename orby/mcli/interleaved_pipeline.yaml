@@ -99,7 +99,6 @@ command: |
   pip install sgl-kernel
   pip install boto3
   pip install parquet-tools
-  pip install transformers==4.53.0
 
   # Set environment variables
   export HYDRA_FULL_ERROR=1
