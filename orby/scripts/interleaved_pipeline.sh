@@ -1,4 +1,15 @@
 #!/bin/bash
+set -u # Exit on undefined variable
+
+# Clean up synchronization flags on in case of resume
+if [ "$NODE_RANK" = "0" ]; then
+    aws s3 rm --recursive "$S3_CHECKPOINT_DIR/sync_flags/" >/dev/null 2>&1 || true
+fi
+
+# Create all directories
+mkdir -p $LOCAL_DATA_DIR
+mkdir -p $LOCAL_MODEL_DIR
+mkdir -p $LOCAL_EVAL_DIR
 
 # Function to find checkpoint with maximum steps from S3 directory
 find_max_step_checkpoint() {
@@ -12,7 +23,7 @@ find_max_step_checkpoint() {
     local checkpoint_dirs=$(aws s3 ls "$s3_dir" | grep "global_step_" | awk '{print $2}' | sed 's|/$||')
     
     if [ -z "$checkpoint_dirs" ]; then
-        echo "Error: No checkpoint directories found in $s3_dir" >&2
+        echo "TOP LEVEL - Error: No checkpoint directories found in $s3_dir" >&2
         return 1
     fi
     
@@ -30,13 +41,53 @@ find_max_step_checkpoint() {
     done
     
     if [ -z "$max_steps_checkpoint" ]; then
-        echo "Error: No valid checkpoint directories found with 'global_step_' pattern" >&2
+        echo "TOP LEVEL - Error: No valid checkpoint directories found with 'global_step_' pattern" >&2
         return 1
     fi
 
-    echo "${s3_dir}${max_steps_checkpoint}"
+    echo "${s3_dir}${max_steps_checkpoint}" # Return the checkpoint path
 }
 
+# Node synchronization functions
+signal_step_complete() {
+    local step_name="$1"
+    local sync_flag="$S3_CHECKPOINT_DIR/sync_flags/${step_name}_complete.flag"
+    
+    if [ "$NODE_RANK" = "0" ]; then
+        echo "Node 0 signaling completion of: $step_name"
+        echo "$(date)" | aws s3 cp - "$sync_flag"
+    fi
+}
+
+wait_for_step_complete() {
+    local step_name="$1"
+    local sync_flag="$S3_CHECKPOINT_DIR/sync_flags/${step_name}_complete.flag"
+    
+    if [ "$NODE_RANK" != "0" ]; then
+        echo "Node $NODE_RANK waiting for step: $step_name"
+        while ! aws s3 ls "$sync_flag" >/dev/null 2>&1; do
+            echo "Node $NODE_RANK still waiting for $step_name..."
+            sleep 5
+        done
+        echo "Node $NODE_RANK: $step_name completed, proceeding..."
+    fi
+}
+
+# Combined function for cleaner code
+run_on_node0_and_sync() {
+    local step_name="$1"
+    shift  # Remove first argument, rest are the commands to run
+    
+    if [ "$NODE_RANK" = "0" ]; then
+        echo "Node 0 executing: $step_name"
+        "$@"  # Execute the remaining arguments as a command
+        signal_step_complete "$step_name"
+    fi
+    
+    wait_for_step_complete "$step_name"
+}
+
+# Helper functions
 extract_step_from_checkpoint_dir() {
     local checkpoint_dir="$1"
     echo $checkpoint_dir | grep -o "global_step_[0-9]*"
@@ -54,12 +105,12 @@ generate_rollout_data() {
         --runtime-env=verl/trainer/runtime_env.yaml \
         --no-wait \
         -- \
-        python3 -u -m orby.trainer.main_generation \
+        python3 -m orby.trainer.main_generation \
             trainer.nnodes=$NUM_NODES \
             trainer.n_gpus_per_node=8 \
             data.path=$train_files \
             data.prompt_key=prompt \
-            +data.response_key=predictions \
+            +data.response_key=$GENERATED_DATA_RESPONSE_KEY \
             data.batch_size=$rollout_batch_size \
             +data.max_prompt_length=7680 \
             +data.filter_overlong_prompts=False \
@@ -178,7 +229,7 @@ grpo_step() {
         actor_rollout_ref.model.enable_gradient_checkpointing=True \
         actor_rollout_ref.actor.fsdp_config.param_offload=True \
         actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
-        actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16 \
+        actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
         actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=8192 \
         actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
         actor_rollout_ref.rollout.name=vllm \
@@ -189,7 +240,7 @@ grpo_step() {
         actor_rollout_ref.rollout.n=4 \
         actor_rollout_ref.rollout.max_model_len=8192 \
         +actor_rollout_ref.rollout.limit_images=3 \
-        actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=16 \
+        actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
         actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=8192 \
         actor_rollout_ref.ref.fsdp_config.param_offload=True \
         algorithm.use_kl_in_reward=False \
@@ -205,18 +256,103 @@ grpo_step() {
         trainer.total_epochs=1 | tee /dev/tty | grep -o "raysubmit_[a-zA-Z0-9]*" | xargs -I{} ray job logs --follow {}
 }
 
+eval_step() {
+    local eval_data_path="$1"
+    local model_path="$2"
+    local current_index="$3"
+
+    # Generation
+    python3 -m orby.trainer.main_generation \
+        trainer.nnodes=1 \
+        trainer.n_gpus_per_node=8 \
+        data.path=$eval_data_path \
+        data.prompt_key=prompt \
+        data.batch_size=1024 \
+        +data.max_prompt_length=7680 \
+        +data.filter_overlong_prompts=false \
+        data.n_samples=1 \
+        data.output_path=$EVAL_OUTPUT_FILE \
+        model.path=$model_path \
+        rollout.temperature=0 \
+        rollout.top_p=1.0 \
+        rollout.prompt_length=7680 \
+        rollout.response_length=512 \
+        rollout.tensor_model_parallel_size=1 \
+        rollout.gpu_memory_utilization=0.9 \
+        rollout.max_num_batched_tokens=65536 \
+        +rollout.limit_images=3
+
+    # Evaluation
+    python3 -m orby.trainer.main_eval \
+        data.path=$EVAL_OUTPUT_FILE \
+        data.prompt_key=prompt \
+        data.response_key=responses \
+        +data.save_scores=false \
+        +data.interleave.store_to_local_parquet=true \
+        +data.interleave.local_parquet_path=$LOCAL_EVAL_RESULT_FILE \
+        +data.interleave.current_index=$current_index \
+        custom_reward_function.path=$REWARD_FILE \
+        custom_reward_function.name=$EVAL_REWARD_FN \
+        +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \
+        +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
+        +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE
+}
+
+filter_step() {
+    local input_parquet_with_rollout="$1"
+    local medium_difficulty_train_files="$2"
+    local hard_difficulty_train_files="$3"
+    local medium_difficulty_filter_upper_bound="$4"
+    local medium_difficulty_filter_lower_bound="$5"
+    local hard_difficulty_filter_upper_bound="$6"
+    local hard_difficulty_filter_lower_bound="$7"
+
+    echo "TOP LEVEL - Step 1.$i.1.0: generating scores ======================================================="
+
+    # Generate scores for each row of the input parquet with rollout
+    python3 -m orby.trainer.main_eval \
+        data.path=$input_parquet_with_rollout \
+        data.prompt_key=prompt \
+        data.response_key=$GENERATED_DATA_RESPONSE_KEY \
+        +data.save_scores=True \
+        custom_reward_function.path=$REWARD_FILE \
+        custom_reward_function.name=$REWARD_FN \
+        +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \
+        +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
+        +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE
+
+    echo "TOP LEVEL - Step 1.$i.1.1: filtering by score ================================================="
+
+    input_num_rows=$(parquet-tools inspect $input_parquet_with_rollout | grep 'num_rows' | awk '{print $2}')
+    echo "TOP LEVEL - Before filtering, the full rollout parquet has $input_num_rows rows"
+
+    # Filter the input parquet with rollout based on the scores
+    python3 -m orby.trainer.main_reward_filter \
+        data.path=$input_parquet_with_rollout \
+        data.medium_difficulty_output_path=$medium_difficulty_train_files \
+        data.hard_difficulty_output_path=$hard_difficulty_train_files \
+        data.medium_difficulty_filter_upper_bound=$medium_difficulty_filter_upper_bound \
+        data.medium_difficulty_filter_lower_bound=$medium_difficulty_filter_lower_bound \
+        data.hard_difficulty_filter_upper_bound=$hard_difficulty_filter_upper_bound \
+        data.hard_difficulty_filter_lower_bound=$hard_difficulty_filter_lower_bound \
+        data.balance_should_end=true \
+        data.should_end_column="reward_model.ground_truth.should_end" \
+        data.reward_score_column=$REWARD_SCORE_COLUMN
+
+    medium_difficulty_num_rows=$(parquet-tools inspect $medium_difficulty_train_files | grep 'num_rows' | awk '{print $2}')
+    hard_difficulty_num_rows=$(parquet-tools inspect $hard_difficulty_train_files | grep 'num_rows' | awk '{print $2}')
+    echo "TOP LEVEL - After filtering, the medium difficulty parquet has $medium_difficulty_num_rows rows"
+    echo "TOP LEVEL - After filtering, the hard difficulty parquet has $hard_difficulty_num_rows rows"
+}
+
 function merge_checkpoint() {
     local max_steps_checkpoint="$1"
-    aws s3 ls $max_steps_checkpoint/hf
-    if [ $? -eq 0 ]; then
-        echo "GRPO checkpoint is already available on S3: $max_steps_checkpoint/hf"
-        return 0
-    fi
+
     python3 orby/scripts/model_merger.py merge \
-    --backend fsdp \
-    --hf_model_path Qwen/Qwen2.5-VL-7B-Instruct \
-    --local_dir $max_steps_checkpoint/actor \
-    --target_dir $max_steps_checkpoint/hf/
+        --backend fsdp \
+        --hf_model_path Qwen/Qwen2.5-VL-7B-Instruct \
+        --local_dir $max_steps_checkpoint/actor \
+        --target_dir $max_steps_checkpoint/hf/
 }
 
 function wait_for_hf_checkpoint() {
@@ -224,124 +360,247 @@ function wait_for_hf_checkpoint() {
     while true; do
         aws s3 ls $max_steps_checkpoint
         if [ $? -eq 0 ]; then
-            echo "Checkpoint is available on S3: $max_steps_checkpoint"
+            echo "TOP LEVEL - Checkpoint is available on S3: $max_steps_checkpoint"
             break
         else
-            echo "Waiting for checkpoint to be available on S3..."
+            echo "TOP LEVEL - Waiting for checkpoint to be available on S3..."
             sleep 10
         fi
     done
 }
 
 
-echo "======Initial SFT step======"
-export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
+# Start of the pipeline
+echo "TOP LEVEL - Step 0: Initial SFT step ==============================================================="
 export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
+export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 
-# Run initial SFT step
-sft_step $INITIAL_SFT_EXPERIMENT_NAME \
-    $MODEL_NAME \
-    $SFT_TRAIN_BATCH_SIZE \
-    $INITIAL_SFT_TRAIN_FILES \
-    $SHARED_VAL_FILES \
-    $S3_INITIAL_SFT_CHECKPOINT_DIR \
-    $SFT_LR \
-    $ATTENTION_DROPOUT \
-    $SFT_MICRO_BATCH_SIZE_PER_GPU
+# If the S3_INITIAL_SFT_CHECKPOINT_DIR is not empty, we skip the initial SFT step (resume)
+if aws s3 ls "$S3_INITIAL_SFT_CHECKPOINT_DIR" >/dev/null 2>&1; then
+    echo "TOP LEVEL - Skip initial SFT step due to existing checkpoint (resume)"
+    export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+elif [ -z "$BASE_SFT_CHECKPOINT" ]; then
+    # If BASE_SFT_CHECKPOINT is not set, we train from scratch
+    echo "TOP LEVEL - Step 0.0b: training from scratch ======================================================="
+    # Download model
+    python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
 
-# Find and copy the initial SFT checkpoint with maximum steps
-export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
-echo "Found initial SFT checkpoint: $MAX_STEPS_CHECKPOINT"
+    # Run initial SFT step
+    sft_step $INITIAL_SFT_EXPERIMENT_NAME \
+        $MODEL_NAME \
+        $SFT_TRAIN_BATCH_SIZE \
+        $INITIAL_SFT_TRAIN_FILES \
+        $SHARED_VAL_FILES \
+        $S3_INITIAL_SFT_CHECKPOINT_DIR \
+        $SFT_LR \
+        $ATTENTION_DROPOUT \
+        $SFT_MICRO_BATCH_SIZE_PER_GPU
+
+    export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+else
+    # Otherwise we download the provided initial checkpoint
+    echo "TOP LEVEL - Step 0.0c: downloading initial SFT checkpoint =========================================="
+    export STEP_DIR=$(extract_step_from_checkpoint_dir $BASE_SFT_CHECKPOINT)
+    export S3_INIT_SFT_CHECKPOINT=${S3_INITIAL_SFT_CHECKPOINT_DIR}${STEP_DIR}
+    # Copy the initial SFT checkpoint with maximum steps; only make one call on node 0
+    run_on_node0_and_sync "base_sft_checkpoint_copy" \
+        aws s3 cp --no-progress --recursive $BASE_SFT_CHECKPOINT $S3_INIT_SFT_CHECKPOINT
+    sleep 60 # Wait to make sure the initial SFT checkpoint is fully uploaded
+fi
+
+echo "TOP LEVEL - Collected initial SFT checkpoint: $S3_INIT_SFT_CHECKPOINT"
 
 # Copy the initial SFT checkpoint with maximum steps
-export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
+export STEP_DIR=$(extract_step_from_checkpoint_dir $S3_INIT_SFT_CHECKPOINT)
 export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/initial_sft/$STEP_DIR
-aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+# Download the SFT checkpoint on all nodes
+aws s3 cp --no-progress --recursive $S3_INIT_SFT_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+
+# Evaluation
+echo "TOP LEVEL - Step 0.1: evaluating initial SFT checkpoint ============================================"
+run_on_node0_and_sync "initial_evaluation" \
+    eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT "initial_sft"
 
 # Main loop
+echo "TOP LEVEL - Step 1: Main loop ======================================================================"
 for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     PER_STEP_TRAIN_FILES=$LOCAL_DATA_DIR/$i/train.parquet
     # We use shared validation files for all steps.
     # PER_STEP_VAL_FILES=$LOCAL_DATA_DIR/$i/test.parquet
     LOCAL_OUTPUT_PARQUET=$LOCAL_DATA_DIR/$i/train_rollout.parquet
-    ROLLOUT_OUTPUT_PARQUET=$ROLLOUT_OUTPUT_DIR/$i/train_rollout.parquet
+    ROLLOUT_OUTPUT_PARQUET=$S3_ROLLOUT_OUTPUT_DIR/$i/train_rollout.parquet
+
+    # We store the filtered datasets for each step and upload them to S3 for workers to download
+    LOCAL_PER_STEP_GRPO_TRAIN_FILES=$LOCAL_DATA_DIR/$i/grpo_train.parquet
+    LOCAL_PER_STEP_SFT_TRAIN_FILES=$LOCAL_DATA_DIR/$i/sft_train.parquet
+    S3_PER_STEP_GRPO_TRAIN_FILES=$S3_ROLLOUT_OUTPUT_DIR/$i/grpo_train.parquet
+    S3_PER_STEP_SFT_TRAIN_FILES=$S3_ROLLOUT_OUTPUT_DIR/$i/sft_train.parquet
 
     # Start ray cluster and wait for all nodes
+    echo "TOP LEVEL - Step 1.$i.0: starting ray cluster ======================================================"
     bash orby/scripts/run_ray.sh $NUM_NODES
 
+    # 1) Run rollout using the previous checkpoint
+    echo "TOP LEVEL - Step 1.$i.1: generating rollout data ==================================================="
+    if aws s3 ls "$ROLLOUT_OUTPUT_PARQUET" >/dev/null 2>&1; then
+        # If the rollout output parquet already exists on S3, we skip the rollout step (resume)
+        echo "TOP LEVEL - Skip rollout step due to existing rollout data (resume)"
+        if [ "$NODE_RANK" = "0" ]; then
+            aws s3 cp --no-progress $ROLLOUT_OUTPUT_PARQUET $LOCAL_OUTPUT_PARQUET
+        fi
+    else
+        # Otherwise we generate the rollout data
+        if [ "$NODE_RANK" = "0" ]; then
+            generate_rollout_data $PER_STEP_TRAIN_FILES \
+                $LOCAL_OUTPUT_PARQUET \
+                $LOCAL_SFT_CHECKPOINT \
+                $TEMPERATURE \
+                $N_SAMPLES \
+                $ROLLOUT_BATCH_SIZE
+
+            # Upload dataset to S3; only make one call on node 0
+            aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
+        fi
+        # Note: No synchronization needed here - Ray manages the distributed execution
+    fi
+
+    # 2) Filtering step
+    echo "TOP LEVEL - Step 1.$i.2: filter by difficulty on node 0 ============================================"
+    if aws s3 ls "$S3_PER_STEP_GRPO_TRAIN_FILES" >/dev/null 2>&1; then
+        # If the filtered datasets already exist on S3, we skip the filtering step (resume)
+        echo "TOP LEVEL - Skip filtering step due to existing filtered datasets (resume)"
+        if [ "$NODE_RANK" = "0" ]; then
+            aws s3 cp --no-progress $S3_PER_STEP_GRPO_TRAIN_FILES $LOCAL_PER_STEP_GRPO_TRAIN_FILES
+            aws s3 cp --no-progress $S3_PER_STEP_SFT_TRAIN_FILES $LOCAL_PER_STEP_SFT_TRAIN_FILES
+        fi
+    else
+        # Otherwise we filter the datasets
+        if [ "$NODE_RANK" = "0" ]; then
+            filter_step $LOCAL_OUTPUT_PARQUET \
+                $LOCAL_PER_STEP_GRPO_TRAIN_FILES \
+                $LOCAL_PER_STEP_SFT_TRAIN_FILES \
+                $MEDIUM_DIFFICULTY_FILTER_UPPER_BOUND \
+                $MEDIUM_DIFFICULTY_FILTER_LOWER_BOUND \
+                $HARD_DIFFICULTY_FILTER_UPPER_BOUND \
+                $HARD_DIFFICULTY_FILTER_LOWER_BOUND
+
+            # Upload dataset to S3; only make one call on node 0
+            aws s3 cp --no-progress $LOCAL_PER_STEP_GRPO_TRAIN_FILES $S3_PER_STEP_GRPO_TRAIN_FILES
+            aws s3 cp --no-progress $LOCAL_PER_STEP_SFT_TRAIN_FILES $S3_PER_STEP_SFT_TRAIN_FILES
+        fi
+        # Note: No synchronization needed here - Ray manages the distributed execution
+    fi
+
+    # 3) Run GRPO step
+    echo "TOP LEVEL - Step 1.$i.3: submitting GRPO job on node 0 ============================================="
     # Export vars for all nodes
     export GRPO_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_grpo
-    export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${GRPO_EXPERIMENT_NAME}/
+    export S3_GRPO_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${i}/grpo/
 
-    # 1) Run rollout using the previous checkpoint
-    echo "======Step $i: generating rollout data======"
+    if aws s3 ls "$S3_GRPO_CHECKPOINT_DIR" >/dev/null 2>&1; then
+        # If the GRPO checkpoint already exists on S3, we skip the GRPO step (resume)
+        echo "TOP LEVEL - Skip GRPO step due to existing GRPO checkpoint (resume)"
+    else
+        # Otherwise we run the GRPO step
+        if [ "$NODE_RANK" = "0" ]; then
+            grpo_step $GRPO_EXPERIMENT_NAME \
+                $LOCAL_PER_STEP_GRPO_TRAIN_FILES \
+                $SHARED_VAL_FILES \
+                $LOCAL_SFT_CHECKPOINT \
+                $GRPO_TRAIN_BATCH_SIZE \
+                $S3_GRPO_CHECKPOINT_DIR \
+                $GRPO_LR \
+                $GRPO_MICRO_BATCH_SIZE_PER_GPU
+        fi
+        # Note: No synchronization needed here - Ray manages the distributed execution
+    fi
 
+    # Stop ray cluster
     if [ "$NODE_RANK" = "0" ]; then
-        echo "======Step $i: submitting rollout job on node 0======"
-        generate_rollout_data $PER_STEP_TRAIN_FILES \
-        $LOCAL_OUTPUT_PARQUET \
-        $LOCAL_SFT_CHECKPOINT \
-        $TEMPERATURE \
-        $N_SAMPLES \
-        $ROLLOUT_BATCH_SIZE
-
-        # Upload dataset to S3
-        aws s3 cp --no-progress $LOCAL_OUTPUT_PARQUET $ROLLOUT_OUTPUT_PARQUET
-
-        # 2) Filtering step
-        echo "======Step $i: submitting filtering job on node 0======"
-        # Placeholder for filtering step
-
-        # 3) Run GRPO step
-        echo "======Step $i: submitting GRPO job on node 0======"
-        grpo_step $GRPO_EXPERIMENT_NAME \
-        $PER_STEP_TRAIN_FILES \
-        $SHARED_VAL_FILES \
-        $LOCAL_SFT_CHECKPOINT \
-        $GRPO_TRAIN_BATCH_SIZE \
-        $S3_GRPO_CHECKPOINT_DIR \
-        $GRPO_LR \
-        $GRPO_MICRO_BATCH_SIZE_PER_GPU
-
-        # Stop ray cluster
         ray stop
     fi
 
+    echo "TOP LEVEL - Step 1.$i.4: merging GRPO checkpoint on node 0 ========================================="
     # Find the GRPO checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$S3_GRPO_CHECKPOINT_DIR")
+    export MAX_STEPS_CHECKPOINT_HF="${MAX_STEPS_CHECKPOINT}/hf"
+    export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
 
-    if [ "$NODE_RANK" = "0" ]; then
-        echo "======Step $i: merging GRPO checkpoint on node 0======"
-        merge_checkpoint $MAX_STEPS_CHECKPOINT
+    # If the GRPO checkpoint already exists on S3, we skip the merging step (resume)
+    if aws s3 ls "$MAX_STEPS_CHECKPOINT_HF" >/dev/null 2>&1; then
+        echo "TOP LEVEL - Skip merging step due to existing GRPO checkpoint (resume)"
+    else
+        # Otherwise we merge the GRPO checkpoint
+        run_on_node0_and_sync "checkpoint_merge_$i" \
+            merge_checkpoint $MAX_STEPS_CHECKPOINT
+
+        # Wait for the checkpoint on other nodes.
+        wait_for_hf_checkpoint $MAX_STEPS_CHECKPOINT_HF
+        # Wait for 300 seconds to make sure the checkpoint is fully uploaded
+        sleep 300
     fi
 
-    # Wait for the checkpoint on other nodes.
-    wait_for_hf_checkpoint $MAX_STEPS_CHECKPOINT/hf
-    # Wait for 300 seconds to make sure the checkpoint is fully uploaded
-    sleep 300
-
-    # Download the merged checkpoint
-    export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
+    # Download the GRPO checkpoint on all nodes
     export LOCAL_GRPO_CHECKPOINT=$LOCAL_MODEL_DIR/grpo_${i}/$STEP_DIR
-    aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT/hf $LOCAL_GRPO_CHECKPOINT
+    aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT_HF $LOCAL_GRPO_CHECKPOINT
+
+    # Evaluation
+    echo "TOP LEVEL - Step 1.$i.5: evaluating GRPO checkpoint $i on node 0 ==================================="
+    run_on_node0_and_sync "grpo_eval_$i" \
+        eval_step $SHARED_VAL_FILES $LOCAL_GRPO_CHECKPOINT "${i}_grpo"
 
     # 4) Run SFT step
-    echo "======Step $i: running SFT======"
+    echo "TOP LEVEL - Step 1.$i.6: running SFT ==============================================================="
     export SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_sft
-    export SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${SFT_EXPERIMENT_NAME}/
-    sft_step $SFT_EXPERIMENT_NAME \
-    $LOCAL_GRPO_CHECKPOINT \
-    $SFT_TRAIN_BATCH_SIZE \
-    $PER_STEP_TRAIN_FILES \
-    $SHARED_VAL_FILES \
-    $SFT_CHECKPOINT_DIR \
-    $SFT_LR \
-    $ATTENTION_DROPOUT \
-    $SFT_MICRO_BATCH_SIZE_PER_GPU
+    export SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${i}/sft/
+
+    if aws s3 ls "$SFT_CHECKPOINT_DIR" >/dev/null 2>&1; then
+        echo "TOP LEVEL - Skip SFT step due to existing SFT checkpoint (resume)"
+    else
+        # Otherwise we run the SFT step
+        # Download the SFT training dataset on all nodes
+        aws s3 cp --no-progress $S3_PER_STEP_SFT_TRAIN_FILES $LOCAL_PER_STEP_SFT_TRAIN_FILES
+
+        sft_step $SFT_EXPERIMENT_NAME \
+            $LOCAL_GRPO_CHECKPOINT \
+            $SFT_TRAIN_BATCH_SIZE \
+            $LOCAL_PER_STEP_SFT_TRAIN_FILES \
+            $SHARED_VAL_FILES \
+            $SFT_CHECKPOINT_DIR \
+            $SFT_LR \
+            $ATTENTION_DROPOUT \
+            $SFT_MICRO_BATCH_SIZE_PER_GPU
+    fi
 
     # Find and copy the SFT checkpoint with maximum steps
     export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$SFT_CHECKPOINT_DIR")
     export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
     export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/sft_${i}/$STEP_DIR
+    # Download the SFT checkpoint on all nodes
     aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
+
+    # evaluation
+    echo "TOP LEVEL - Step 1.$i.7: evaluating SFT checkpoint $i on node 0 ===================================="
+    run_on_node0_and_sync "sft_eval_$i" \
+        eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT "${i}_sft"
 done
+
+# Final report
+echo "TOP LEVEL - Step 2: report results ================================================================="
+# Upload the evaluation results to S3 on node 0
+if [ "$NODE_RANK" = "0" ]; then
+    aws s3 cp --no-progress $LOCAL_EVAL_RESULT_FILE $S3_EVAL_RESULT_FILE
+    # Clean up synchronization flags
+    sleep 60 # Wait to make sure worker nodes sees the final eval complete flag
+    echo "TOP LEVEL - Cleaning up synchronization flags..."
+    aws s3 rm --recursive "$S3_CHECKPOINT_DIR/sync_flags/" >/dev/null 2>&1 || true
+fi    
+
+echo "All training rounds are done."
+echo "All checkpoints are available at: $S3_CHECKPOINT_DIR"
+echo "All rollout data are available at: $S3_ROLLOUT_OUTPUT_DIR"
+echo "All evaluation results are available at: $S3_EVAL_RESULT_DIR"
+
+echo "TOP LEVEL - ALL DONE ==============================================================================="
+
+exit 0

@@ -13,7 +13,7 @@ python3 -m orby.trainer.main_generation \
     trainer.n_gpus_per_node=8 \
     data.path=$DATA_PATH \
     data.prompt_key=prompt \
-    data.batch_size=256 \
+    data.batch_size=1024 \
     +data.max_prompt_length=7680 \
     data.n_samples=1 \
     data.output_path=$OUTPUT_FILE \
