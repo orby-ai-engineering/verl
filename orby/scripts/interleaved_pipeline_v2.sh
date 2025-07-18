@@ -139,8 +139,8 @@ sft_step() {
     local sft_lr="$7"
     local attention_dropout="$8"
     local sft_micro_batch_size_per_gpu="$9"
-    local warmup_steps_ratio="$10"
-    local lr_scheduler="$11"
+    local warmup_steps_ratio="${10}"
+    local lr_scheduler="${11}"
 
     torchrun \
         --nproc_per_node=8 \
