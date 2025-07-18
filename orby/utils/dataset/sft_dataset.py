@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import copy
+import io
 import logging
 import os
 import re
@@ -25,13 +26,86 @@ import datasets
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig
+from PIL import Image
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer, ProcessorMixin
 
 import verl.utils.torch_functional as verl_F
 from verl.utils.model import compute_position_id_with_mask
+from datasets import Sequence, Image
 
 logger = logging.getLogger(__name__)
+
+
+def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
+    """
+    Remove unnecessary fields from dataset to keep only those used during training.
+    Also standardizes image format and schema across different datasets.
+    
+    Required fields for training:
+    - prompt: Used to build messages for chat template
+    - response: Used to extend messages for SFT training
+    - images: Used for multimodal processing
+    - data_source: Used for logging
+    
+    Args:
+        dataset: The dataset to clean
+        
+    Returns:
+        Cleaned dataset with only necessary fields and standardized formats
+    """
+    # Define fields to keep
+    fields_to_keep = {
+        'prompt',
+        'response', 
+        'images',
+        'videos',
+        'data_source'
+    }
+    
+    # Get current features
+    current_features = set(dataset.features.keys())
+    
+    # Find fields to remove
+    fields_to_remove = current_features - fields_to_keep
+    
+    if fields_to_remove:
+        logger.info(f"Removing unnecessary fields: {fields_to_remove}")
+        dataset = dataset.remove_columns(list(fields_to_remove))
+    
+    #TODO: Reconcile the differences in image format and response schema between subtask_direct_distill and uground,os_atlas at the dataset level
+    # Standardize image format if needed
+    if 'images' in dataset.features:
+        # Check if images are in Dataset 2 format (list of dicts with bytes/path)
+        # Dataset subtask_direct_distill format: [{'bytes': binary, 'path': int32}]
+        # Dataset uground,os_atlas format: Sequence(feature=Image(mode=None, decode=True))
+        if type(dataset.features['images']) == list:
+            logger.info("Converting image format from [{'bytes': binary, 'path': int32}] to Sequence[Image]")
+            # Cast the images column to the new Sequence type
+            dataset = dataset.cast_column('images', Sequence(feature=Image(decode=True), length=-1))
+    
+    # In all datasets, the response field is a list of dicts with role and content keys
+    # The order of keys is "role" and "content" in subtask_direct_distill dataset, and "content" and "role" in uground,os_atlas dataset
+    # This leads to a mismatch in the response schema between the two datasets, which results in a failure to concatenate the two datasets
+    # Change response message key order for subtask_direct_distill dataset
+    if 'data_source' in dataset.features and dataset['data_source'][0] == 'subtask_direct_distill':
+        logger.info("Standardizing response message key order")
+                
+        # Explicitly cast the response column to ensure schema compatibility
+        response_features = [{
+            "content": datasets.Value("string"),
+            "role": datasets.Value("string")
+        }]
+        
+        # Create new features with the correct order
+        new_features = dataset.features.copy()
+        new_features["response"] = response_features
+        
+        # Cast the dataset to the new schema
+        dataset = dataset.cast(new_features)
+    
+    logger.info(f"Dataset features: {dataset.features}")
+    return dataset
 
 
 def collate_fn(data_list: list[dict]) -> dict:
@@ -121,6 +195,9 @@ class SFTDataset(Dataset):
             dataframe = datasets.load_dataset("parquet", data_files=parquet_file)[
                 "train"
             ]
+            # Clean the dataset to remove unnecessary fields
+            logger.info(f"Dataset features for {parquet_file}")
+            dataframe = clean_dataset_for_training(dataframe)
             dataframes.append(dataframe)
         self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
 

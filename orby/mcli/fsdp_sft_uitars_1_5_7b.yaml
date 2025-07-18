@@ -1,0 +1,114 @@
+name: uitars-sft-uground-subtask-erm-docker-osatlas-combined
+
+image: whatcanyousee/verl:ngc-cu124-vllm0.8.3-sglang0.4.5-mcore0.12.0-te2.2
+
+integrations:
+  - integration_type: git_repo
+    git_repo: orby-ai-engineering/verl
+    git_branch: mpk/consistent_sft_dataset_format
+    pip_install: .
+    ssh_clone: true
+
+compute:
+  gpus: 32 # Number of GPUs to use
+  cluster: r8z13p2
+  gpu_type: h100_80gb
+
+command: |
+  export EXPERIMENT_NAME=verl-sft-uitars-uground-subtask-erm-docker-osatlas-combined
+  export NUM_NODES=4
+  export TRAIN_BATCH_SIZE=64
+  # Enter S3 path if you want to use a trained checkpoint as the base model, else don't set this env variable.
+  # export BASE_MODEL_PATH=s3://orby-osu-va/verl-checkpoints/uground/uitars_7b_40k_sft/global_step_333/
+  export MODEL_NAME=ByteDance-Seed/UI-TARS-1.5-7B
+  export PROJECT_NAME=uitars_uground_subtask
+  export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask/$EXPERIMENT_NAME
+
+  cd /workspace/verl
+  sed -i 's|mirrors.tuna.tsinghua.edu.cn|us.archive.ubuntu.com|g' /etc/apt/sources.list
+  apt update
+  apt install iproute2 -y
+  apt install -y dnsutils
+  apt install -y emacs
+  apt install -y awscli
+  pip install 'urllib3<2'
+  pip install s3fs
+  pip install parquet-tools
+  pip install boto3
+  pip show transformers
+
+  export HYDRA_FULL_ERROR=1
+  INTERFACE=$(ip route | grep default | awk '{print $5}' | head -1)
+  echo "Using interface: $INTERFACE"
+  export GLOO_SOCKET_IFNAME=$INTERFACE
+  export HF_HUB_ENABLE_HF_TRANSFER=1
+  export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+  export CUDA_LAUNCH_BLOCKING=1
+  if [ -n "$BASE_MODEL_PATH" ]; then
+    aws s3 cp --no-progress --recursive $BASE_MODEL_PATH $MODEL_NAME
+  else
+    # Download model from Huggingface Hub
+    python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
+  fi
+  # Install verl lib: https://verl.readthedocs.io/en/latest/start/install.html
+  pip3 install -e .[vllm]
+  # Set PYTHONPATH for orby.trainer module
+  export PYTHONPATH="/workspace/verl:$PYTHONPATH"
+  
+  TRAIN_FILES=$(aws s3 ls s3://orby-osu-va/Rishu-SFT-Dataset/uground/subtask/100k/train/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/Rishu-SFT-Dataset/uground/subtask/100k/train/" $4}' | head -9 | paste -sd ',' -)
+  VAL_FILES=$(aws s3 ls s3://orby-osu-va/Rishu-SFT-Dataset/uground/subtask/100k/test/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/Rishu-SFT-Dataset/uground/subtask/100k/test/" $4}' | head -9 | paste -sd ',' -)
+
+  TRAIN_FILES=$TRAIN_FILES,$(aws s3 ls s3://orby-osu-va/Rishu-SFT-Dataset/os_atlas/subtask/55k/train/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/Rishu-SFT-Dataset/os_atlas/subtask/55k/train/" $4}' | head -8 | paste -sd ',' -)
+  VAL_FILES=$VAL_FILES,$(aws s3 ls s3://orby-osu-va/Rishu-SFT-Dataset/os_atlas/subtask/55k/test/ | grep '\.parquet$' | awk '{print "s3://orby-osu-va/Rishu-SFT-Dataset/os_atlas/subtask/55k/test/" $4}' | head -8 | paste -sd ',' -)
+
+  # TRAIN_FILES=$TRAIN_FILES,s3://orby-osu-va/subtask/verl/experiment_2/train/executor_only_with_response/part-00000-tid-2510824678627585878-9a25a735-1043-4634-8ce5-ba69c841b3ae-959-1-c000.snappy.parquet
+  TRAIN_FILES=$TRAIN_FILES,s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_with_response_docker_mixedin_sft/part-00000-tid-5462549197262617300-3393c8e4-acc1-4db9-bdaf-9fc093d7921b-1670-1-c000.snappy.parquet
+  VAL_FILES=$VAL_FILES,s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined_with_response/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet
+
+  echo "Found train files: $TRAIN_FILES"
+  echo "Found val files: $VAL_FILES"
+
+  # Run torchrun on each node
+  torchrun \
+    --nproc_per_node=8 \
+    --nnodes=$NUM_NODES \
+    --node_rank=$NODE_RANK \
+    --master_addr=$MASTER_ADDR \
+    --master_port=${MASTER_PORT:-29500} \
+    -m orby.trainer.fsdp_sft_trainer \
+    data.train_batch_size=$TRAIN_BATCH_SIZE \
+    data.micro_batch_size_per_gpu=2 \
+    data.train_files="[$TRAIN_FILES]" \
+    data.val_files="[$VAL_FILES]" \
+    +data.max_prompt_length=7680 \
+    +data.max_response_length=512 \
+    +data.filter_overlong_prompts=False \
+    data.truncation='error' \
+    +data.shuffle=True \
+    data.prompt_key=prompt \
+    data.response_key=response \
+    +data.image_key=images \
+    +processor.use_fast=true \
+    +processor.trust_remote_code=true \
+    optim.lr=1e-6 \
+    model.partial_pretrain=$MODEL_NAME \
+    model.fsdp_config.cpu_offload=true \
+    model.enable_gradient_checkpointing=true \
+    +model.enable_activation_offload=true \
+    model.fsdp_config.offload_params=true \
+    +model.fsdp_config.param_offload=true \
+    trainer.default_local_dir=$S3_CHECKPOINT_DIR \
+    trainer.total_training_steps=null \
+    trainer.project_name=$PROJECT_NAME \
+    trainer.experiment_name=$EXPERIMENT_NAME \
+    trainer.logger=[console,wandb] \
+    trainer.default_hdfs_dir=null \
+    +trainer.val_interval=20 \
+    +trainer.save_interval=100 \
+    trainer.total_epochs=1 \
+    ulysses_sequence_parallel_size=1 \
+    use_remove_padding=false \
+    +model.fsdp_config.reshard_after_forward=true \
+    +model.use_remove_padding=true \
+    model.fsdp_config.wrap_policy.min_num_params=1000000 \
+    +model.fsdp_config.optimizer_offload=true
