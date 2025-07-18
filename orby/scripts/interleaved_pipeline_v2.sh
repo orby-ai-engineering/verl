@@ -419,6 +419,7 @@ echo "TOP LEVEL - Collected initial SFT checkpoint: $S3_INIT_SFT_CHECKPOINT"
 # Copy the initial SFT checkpoint with maximum steps
 export STEP_DIR=$(extract_step_from_checkpoint_dir $S3_INIT_SFT_CHECKPOINT)
 export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/initial_sft/$STEP_DIR
+export LOCAL_GRPO_CHECKPOINT=$LOCAL_MODEL_DIR/initial_sft/$STEP_DIR
 # Download the SFT checkpoint on all nodes
 aws s3 cp --no-progress --recursive $S3_INIT_SFT_CHECKPOINT $LOCAL_SFT_CHECKPOINT
 
