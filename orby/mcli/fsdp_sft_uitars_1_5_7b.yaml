@@ -35,7 +35,6 @@ command: |
   pip install s3fs
   pip install parquet-tools
   pip install boto3
-  pip install transformers==4.53.0
   pip show transformers
 
   export HYDRA_FULL_ERROR=1
