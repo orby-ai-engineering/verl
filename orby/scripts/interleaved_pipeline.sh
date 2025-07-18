@@ -139,6 +139,8 @@ sft_step() {
     local sft_lr="$7"
     local attention_dropout="$8"
     local sft_micro_batch_size_per_gpu="$9"
+    local warmup_steps_ratio="$10"
+    local lr_scheduler="$11"
 
     torchrun \
         --nproc_per_node=8 \
@@ -162,6 +164,8 @@ sft_step() {
         +processor.use_fast=true \
         +processor.trust_remote_code=true \
         optim.lr=$sft_lr \
+        optim.warmup_steps_ratio=$warmup_steps_ratio \
+        optim.lr_scheduler=$lr_scheduler \
         +model.qwen_attention_dropout=$attention_dropout \
         model.partial_pretrain=$model_name \
         model.fsdp_config.cpu_offload=true \
@@ -394,7 +398,9 @@ elif [ -z "$BASE_SFT_CHECKPOINT" ]; then
         $S3_INITIAL_SFT_CHECKPOINT_DIR \
         $SFT_LR \
         $ATTENTION_DROPOUT \
-        $SFT_MICRO_BATCH_SIZE_PER_GPU
+        $SFT_MICRO_BATCH_SIZE_PER_GPU \
+        $INITIAL_SFT_WARMUP_STEPS_RATIO \
+        $INITIAL_LR_SCHEDULER
 
     export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
 else
@@ -567,9 +573,11 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
             $LOCAL_PER_STEP_SFT_TRAIN_FILES \
             $SHARED_VAL_FILES \
             $SFT_CHECKPOINT_DIR \
-            $SFT_LR \
+            $STEP_SFT_LR \
             $ATTENTION_DROPOUT \
-            $SFT_MICRO_BATCH_SIZE_PER_GPU
+            $SFT_MICRO_BATCH_SIZE_PER_GPU \
+            $STEP_SFT_WARMUP_STEPS_RATIO \
+            $STEP_SFT_LR_SCHEDULER
     fi
 
     # Find and copy the SFT checkpoint with maximum steps
