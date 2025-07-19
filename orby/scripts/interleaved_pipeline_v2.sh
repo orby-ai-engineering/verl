@@ -443,10 +443,6 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     S3_PER_STEP_GRPO_TRAIN_FILES=$S3_ROLLOUT_OUTPUT_DIR/$i/grpo_train.parquet
     S3_PER_STEP_SFT_TRAIN_FILES=$S3_ROLLOUT_OUTPUT_DIR/$i/sft_train.parquet
 
-    # Start ray cluster and wait for all nodes
-    echo "TOP LEVEL - Step 1.$i.0: starting ray cluster ======================================================"
-    bash orby/scripts/run_ray.sh $NUM_NODES
-
     # 1) Run rollout using the previous checkpoint
     echo "TOP LEVEL - Step 1.$i.1: generating rollout data ==================================================="
     if aws s3 ls "$ROLLOUT_OUTPUT_PARQUET" >/dev/null 2>&1; then
@@ -534,6 +530,10 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
     echo "TOP LEVEL - Step 1.$i.7: evaluating SFT checkpoint $i on node 0 ===================================="
     run_on_node0_and_sync "sft_eval_$i" \
         eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT "${i}_sft"
+
+    # Start ray cluster and wait for all nodes
+    echo "TOP LEVEL - Step 1.$i.0: starting ray cluster ======================================================"
+    bash orby/scripts/run_ray.sh $NUM_NODES
 
     # 3) Run GRPO step
     echo "TOP LEVEL - Step 1.$i.3: submitting GRPO job on node 0 ============================================="
