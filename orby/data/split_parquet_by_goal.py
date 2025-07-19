@@ -18,10 +18,19 @@ def extract_goal_from_prompt(prompt):
     Returns:
         str: The extracted goal, or None if not found
     """
-    pattern = r"I am trying to complete the following task:\s*(.+)"
-    match = re.search(pattern, prompt)
-    if match:
-        return match.group(1).strip()
+    for p in prompt:
+        pattern = r"I am trying to complete the following task:\s*(.+)"
+        match = re.search(pattern, p["content"])
+        if match:
+            return match.group(1).strip()
+        pattern = r"We are trying to complete the following tasks:\s*(.+)"
+        match = re.search(pattern, p["content"])
+        if match:
+            return match.group(1).strip()
+        pattern = r"Again, our goal is:\s*(.+)"
+        match = re.search(pattern, p["content"])
+        if match:
+            return match.group(1).strip()
     return None
 
 
