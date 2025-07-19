@@ -346,7 +346,7 @@ class FSDPSFTTrainer:
 
             if self.config.data.image_key is not None:
                 kwargs = {}
-                if self.config.model.get("qwen_attention_dropout", None) is not None:
+                if self.config.model.get("qwen_attention_dropout", None):
                     kwargs.update(
                         {
                             "attention_dropout": self.config.model.qwen_attention_dropout,

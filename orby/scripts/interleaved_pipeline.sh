@@ -375,37 +375,43 @@ echo "TOP LEVEL - Step 0: Initial SFT step =====================================
 export INITIAL_SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_initial_sft
 export S3_INITIAL_SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/initial_sft/
 
-# If the S3_INITIAL_SFT_CHECKPOINT_DIR is not empty, we skip the initial SFT step (resume)
-if aws s3 ls "$S3_INITIAL_SFT_CHECKPOINT_DIR" >/dev/null 2>&1; then
-    echo "TOP LEVEL - Skip initial SFT step due to existing checkpoint (resume)"
-    export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
-elif [ -z "$BASE_SFT_CHECKPOINT" ]; then
-    # If BASE_SFT_CHECKPOINT is not set, we train from scratch
-    echo "TOP LEVEL - Step 0.0b: training from scratch ======================================================="
-    # Download model
-    python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
+if [ -z "$BASE_SFT_CHECKPOINT" ]; then
+    # If BASE_SFT_CHECKPOINT is not set, we check if the initial SFT checkpoint exists on S3
+    if aws s3 ls "$S3_INITIAL_SFT_CHECKPOINT_DIR" >/dev/null 2>&1; then
+        # If the initial SFT checkpoint exists on S3, we skip the initial SFT step (resume)
+        echo "TOP LEVEL - Skip initial SFT step due to existing checkpoint (resume)"
+        export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+    else
+        # If the initial SFT checkpoint does not exist on S3, we train from scratch
+        echo "TOP LEVEL - Step 0.0b: training from scratch ======================================================="
+        # Download model
+        python3 -c "import transformers; transformers.pipeline(model='$MODEL_NAME', device='cpu')"
 
-    # Run initial SFT step
-    sft_step $INITIAL_SFT_EXPERIMENT_NAME \
-        $MODEL_NAME \
-        $SFT_TRAIN_BATCH_SIZE \
-        $INITIAL_SFT_TRAIN_FILES \
-        $SHARED_VAL_FILES \
-        $S3_INITIAL_SFT_CHECKPOINT_DIR \
-        $SFT_LR \
-        $ATTENTION_DROPOUT \
-        $SFT_MICRO_BATCH_SIZE_PER_GPU
+        # Run initial SFT step
+        sft_step $INITIAL_SFT_EXPERIMENT_NAME \
+            $MODEL_NAME \
+            $SFT_TRAIN_BATCH_SIZE \
+            $INITIAL_SFT_TRAIN_FILES \
+            $SHARED_VAL_FILES \
+            $S3_INITIAL_SFT_CHECKPOINT_DIR \
+            $SFT_LR \
+            $ATTENTION_DROPOUT \
+            $SFT_MICRO_BATCH_SIZE_PER_GPU
 
-    export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+        export S3_INIT_SFT_CHECKPOINT=$(find_max_step_checkpoint "$S3_INITIAL_SFT_CHECKPOINT_DIR")
+    fi
 else
     # Otherwise we download the provided initial checkpoint
+    # Note: this if-else pattern is strictly necessary to avoid race conditions when a base SFT checkpoint is provided
+    # the following code will copy the base SFT checkpoint to the initial SFT checkpoint directory, thus, if
+    # the copy already started after node 0 makes the call, and worker nodes check for existence of the checkpoint,
+    # they will see the incomplete checkpoint and skip the initial SFT step.
     echo "TOP LEVEL - Step 0.0c: downloading initial SFT checkpoint =========================================="
     export STEP_DIR=$(extract_step_from_checkpoint_dir $BASE_SFT_CHECKPOINT)
     export S3_INIT_SFT_CHECKPOINT=${S3_INITIAL_SFT_CHECKPOINT_DIR}${STEP_DIR}
     # Copy the initial SFT checkpoint with maximum steps; only make one call on node 0
     run_on_node0_and_sync "base_sft_checkpoint_copy" \
         aws s3 cp --no-progress --recursive $BASE_SFT_CHECKPOINT $S3_INIT_SFT_CHECKPOINT
-    sleep 60 # Wait to make sure the initial SFT checkpoint is fully uploaded
 fi
 
 echo "TOP LEVEL - Collected initial SFT checkpoint: $S3_INIT_SFT_CHECKPOINT"
