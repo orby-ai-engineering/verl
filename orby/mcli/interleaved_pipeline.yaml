@@ -85,7 +85,7 @@ command: |
   # Set rollout parameters
   export S3_ROLLOUT_OUTPUT_DIR=s3://orby-llm/interleaved/rollout/$EXPERIMENT_NAME
   export N_SAMPLES=4
-  export TEMPERATURE=0.7
+  export TEMPERATURE=0.1
 
   # Init environment
   cd /workspace/verl
