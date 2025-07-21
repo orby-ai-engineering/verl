@@ -46,7 +46,7 @@ class UISubtaskRewardScorer:
         similarity = SequenceMatcher(
             None, pred_content.lower(), gt_content.lower()
         ).ratio()
-        return similarity >= threshold
+        return similarity
 
     def _score_reward_model(
         self, prediction: str, ground_truth: dict, detailed: bool
