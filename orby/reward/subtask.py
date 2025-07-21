@@ -100,8 +100,8 @@ class UISubtaskRewardScorer:
             print(f"Error calculating goal achieved score: {e}")
             goal_achieved_score = 0
         try:
-            answer_score = int(
-                self._check_text_similarity(pred_dict["answer"], gt_dict["answer"])
+            answer_score = self._check_text_similarity(
+                pred_dict["answer"], gt_dict["answer"]
             )
         except Exception as e:
             print(f"Error calculating answer score: {e}")
