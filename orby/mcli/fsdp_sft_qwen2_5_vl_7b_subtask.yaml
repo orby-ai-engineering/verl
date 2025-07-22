@@ -1,4 +1,4 @@
-name: verl-finetune-sft-subtask
+name: verl-finetune-sft
 
 image: whatcanyousee/verl:ngc-cu124-vllm0.8.3-sglang0.4.5-mcore0.12.0-te2.2
 
@@ -24,6 +24,8 @@ command: |
   export S3_CHECKPOINT_DIR=s3://orby-osu-va/verl-checkpoints/subtask_sft/$EXPERIMENT_NAME
 
   # Set training environment variables
+  export S3_TRAIN_FILES=s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_with_response/part-00000-tid-3712964276653840281-af2210b2-e910-4427-aa16-9f2a2cfdae0a-844-1-c000.snappy.parquet
+  export S3_VAL_FILES=s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined_with_response/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet
   export TRAIN_FILES=$HOME/data/subtask_direct_distill/mix/train/combined_with_response.parquet
   export VAL_FILES=$HOME/data/subtask_direct_distill/mix/test/combined_with_response.parquet
 
@@ -60,10 +62,8 @@ command: |
   export PYTHONPATH="/workspace/verl:$PYTHONPATH"
 
   # Download merged datasets
-  mkdir -p ~/data/subtask_direct_distill/mix/train/
-  mkdir -p ~/data/subtask_direct_distill/mix/test/
-  aws s3 cp --no-progress s3://orby-osu-va/subtask/verl/experiment_2/test/executor_reward_model_combined_with_response/part-00000-tid-6116228279497623000-6660e492-d87d-4c87-903b-261c86c79b92-531-1-c000.snappy.parquet $VAL_FILES
-  aws s3 cp --no-progress s3://orby-osu-va/subtask/verl/experiment_2/train/executor_reward_model_combined_with_response/part-00000-tid-3712964276653840281-af2210b2-e910-4427-aa16-9f2a2cfdae0a-844-1-c000.snappy.parquet $TRAIN_FILES
+  aws s3 cp --no-progress $S3_VAL_FILES $VAL_FILES
+  aws s3 cp --no-progress $S3_TRAIN_FILES $TRAIN_FILES
 
   # Run torchrun on each node
   torchrun \
@@ -87,7 +87,7 @@ command: |
     +data.image_key=images \
     +processor.use_fast=true \
     +processor.trust_remote_code=true \
-    optim.lr=1e-6 \
+    optim.lr=1e-5 \
     model.partial_pretrain=$MODEL_NAME \
     model.fsdp_config.cpu_offload=true \
     model.enable_gradient_checkpointing=true \
