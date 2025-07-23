@@ -1,0 +1,5 @@
+data:
+  path: /tmp/input.parquet
+  output_path_1: /tmp/output_part1.parquet
+  output_path_2: /tmp/output_part2.parquet
+  split_ratio: 0.5
