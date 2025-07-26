@@ -121,7 +121,7 @@ generate_rollout_data() {
             rollout.top_p=1.0 \
             rollout.prompt_length=7680 \
             rollout.response_length=512 \
-            rollout.tensor_model_parallel_size=1 \
+            rollout.tensor_model_parallel_size=8 \
             rollout.gpu_memory_utilization=0.9 \
             rollout.max_num_batched_tokens=65536 \
             rollout.n=$n_samples \
@@ -231,7 +231,7 @@ grpo_step() {
         actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
         actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
         actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=8192 \
-        actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
+        actor_rollout_ref.rollout.tensor_model_parallel_size=8 \
         actor_rollout_ref.rollout.name=vllm \
         actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
         actor_rollout_ref.rollout.enable_chunked_prefill=False \
@@ -267,7 +267,7 @@ eval_step() {
         trainer.n_gpus_per_node=8 \
         data.path=$eval_data_path \
         data.prompt_key=prompt \
-        data.batch_size=1024 \
+        data.batch_size=256 \
         +data.max_prompt_length=7680 \
         +data.filter_overlong_prompts=false \
         data.n_samples=1 \
@@ -277,7 +277,7 @@ eval_step() {
         rollout.top_p=1.0 \
         rollout.prompt_length=7680 \
         rollout.response_length=512 \
-        rollout.tensor_model_parallel_size=1 \
+        rollout.tensor_model_parallel_size=8 \
         rollout.gpu_memory_utilization=0.9 \
         rollout.max_num_batched_tokens=65536 \
         +rollout.limit_images=3
