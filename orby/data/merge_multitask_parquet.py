@@ -38,13 +38,28 @@ def fix_dataset_format_for_merge(dataset):
         # Cast the dataset to the new schema
         dataset = dataset.cast(new_features)
 
+    return dataset
 
-parquet_files = ["~/data/uground.parquet", "~/data/subtask.parquet"]
+
+parquet_files = [
+    "/root/subtask/osatlas_test_part_0000.parquet",
+    "/root/subtask/osatlas_test_part_0001.parquet",
+    #"/root/subtask/osatlas_test_part_0006.parquet",
+    #"/root/subtask/osatlas_test_part_0007.parquet",
+    "/root/subtask/test_part_0000.parquet",
+    "/root/subtask/test_part_0001.parquet",
+    #"/root/subtask/test_part_0006.parquet",
+    #"/root/subtask/test_part_0007.parquet",
+    "/root/subtask/subtask_test.parquet",
+]
 dataframes = []
 for parquet_file in parquet_files:
-    dataframe = datasets.load_dataset("parquet", data_files=parquet_file)
+    dataframe = datasets.load_dataset("parquet", data_files=parquet_file)["train"]
     dataframe = fix_dataset_format_for_merge(dataframe)
     dataframes.append(dataframe)
+    print(parquet_file)
+    print(dataframe)
 
 dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
-dataframe.save_to_disk("~/dataset/combined.parquet")
+print('Final', dataframe)
+dataframe.to_pandas().to_parquet("/root/subtask/test.parquet", row_group_size=512)
