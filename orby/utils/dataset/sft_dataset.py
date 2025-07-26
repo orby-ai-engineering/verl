@@ -41,69 +41,63 @@ def clean_dataset_for_training(dataset: datasets.Dataset) -> datasets.Dataset:
     """
     Remove unnecessary fields from dataset to keep only those used during training.
     Also standardizes image format and schema across different datasets.
-    
+
     Required fields for training:
     - prompt: Used to build messages for chat template
     - response: Used to extend messages for SFT training
     - images: Used for multimodal processing
     - data_source: Used for logging
-    
+
     Args:
         dataset: The dataset to clean
-        
+
     Returns:
         Cleaned dataset with only necessary fields and standardized formats
     """
     # Define fields to keep
-    fields_to_keep = {
-        'prompt',
-        'response', 
-        'images',
-        'videos',
-        'data_source'
-    }
-    
+    fields_to_keep = {"prompt", "response", "images", "videos", "data_source"}
+
     # Get current features
     current_features = set(dataset.features.keys())
-    
+
     # Find fields to remove
     fields_to_remove = current_features - fields_to_keep
-    
+
     if fields_to_remove:
         logger.info(f"Removing unnecessary fields: {fields_to_remove}")
         dataset = dataset.remove_columns(list(fields_to_remove))
-    
-    #TODO: Reconcile the differences in image format and response schema between subtask_direct_distill and uground,os_atlas at the dataset level
+
+    # TODO: Reconcile the differences in image format and response schema between subtask_direct_distill and uground,os_atlas at the dataset level
     # Standardize image format if needed
-    if 'images' in dataset.features:
-        # Check if images are in Dataset 2 format (list of dicts with bytes/path)
-        # Dataset subtask_direct_distill format: [{'bytes': binary, 'path': int32}]
-        # Dataset uground,os_atlas format: Sequence(feature=Image(mode=None, decode=True))
-        if type(dataset.features['images']) == list:
-            logger.info("Converting image format from [{'bytes': binary, 'path': int32}] to Sequence[Image]")
-            # Cast the images column to the new Sequence type
-            dataset = dataset.cast_column('images', Sequence(feature=Image(decode=True), length=-1))
-    
+    # if 'images' in dataset.features:
+    #     # Check if images are in Dataset 2 format (list of dicts with bytes/path)
+    #     # Dataset subtask_direct_distill format: [{'bytes': binary, 'path': int32}]
+    #     # Dataset uground,os_atlas format: Sequence(feature=Image(mode=None, decode=True))
+    #     if type(dataset.features['images']) == list:
+    #         logger.info("Converting image format from [{'bytes': binary, 'path': int32}] to Sequence[Image]")
+    #         # Cast the images column to the new Sequence type
+    #         dataset = dataset.cast_column('images', Sequence(feature=Image(decode=True), length=-1))
+
     # In all datasets, the response field is a list of dicts with role and content keys
     # The order of keys is "role" and "content" in subtask_direct_distill dataset, and "content" and "role" in uground,os_atlas dataset
     # This leads to a mismatch in the response schema between the two datasets, which results in a failure to concatenate the two datasets
     # Change response message key order for subtask_direct_distill dataset
-    if 'data_source' in dataset.features and dataset['data_source'][0] == 'subtask_direct_distill':
-        logger.info("Standardizing response message key order")
-                
-        # Explicitly cast the response column to ensure schema compatibility
-        response_features = [{
-            "content": datasets.Value("string"),
-            "role": datasets.Value("string")
-        }]
-        
-        # Create new features with the correct order
-        new_features = dataset.features.copy()
-        new_features["response"] = response_features
-        
-        # Cast the dataset to the new schema
-        dataset = dataset.cast(new_features)
-    
+    # if 'data_source' in dataset.features and dataset['data_source'][0] == 'subtask_direct_distill':
+    #     logger.info("Standardizing response message key order")
+
+    #     # Explicitly cast the response column to ensure schema compatibility
+    #     response_features = [{
+    #         "content": datasets.Value("string"),
+    #         "role": datasets.Value("string")
+    #     }]
+
+    #     # Create new features with the correct order
+    #     new_features = dataset.features.copy()
+    #     new_features["response"] = response_features
+
+    #     # Cast the dataset to the new schema
+    #     dataset = dataset.cast(new_features)
+
     logger.info(f"Dataset features: {dataset.features}")
     return dataset
 
@@ -240,8 +234,10 @@ class SFTDataset(Dataset):
         messages: list = example.pop(self.prompt_key)
         # SFT Training will always assume that the response_key is 'response' (which is different from verl which assumes that it is in the extra_info dict under the key 'answer')
         if (self.response_key != "response") or (self.response_key not in example):
-            raise ValueError(f"response_key '{self.response_key}' is not set to 'response' or is not present in example. Available keys: {list(example.keys())}")
-        
+            raise ValueError(
+                f"response_key '{self.response_key}' is not set to 'response' or is not present in example. Available keys: {list(example.keys())}"
+            )
+
         response_messages = ""
 
         response_messages = example[self.response_key]
