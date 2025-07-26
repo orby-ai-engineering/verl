@@ -175,8 +175,8 @@ sft_step() {
         trainer.experiment_name=$experiment_name \
         trainer.logger=[console,wandb] \
         trainer.default_hdfs_dir=null \
-        +trainer.val_interval=100 \
-        +trainer.save_interval=100 \
+        +trainer.val_interval=400 \
+        +trainer.save_interval=400 \
         trainer.total_epochs=1 \
         ulysses_sequence_parallel_size=1 \
         use_remove_padding=false \
