@@ -10,7 +10,7 @@ def training_reward_func(
     if data_source in ["uground"]:
         from orby.reward import uground
 
-        return uground.reward_func(
+        scores = uground.reward_func(
             data_source,
             solution_str,
             ground_truth,
@@ -18,10 +18,11 @@ def training_reward_func(
             kwargs.get("use_gaussian"),
             kwargs.get("extra_info"),
         )
+        return {'score': scores['score']}
     elif data_source in ["subtask_direct_distill"]:
         from orby.reward import subtask
 
-        return subtask.training_reward_func(
+        scores = subtask.training_reward_func(
             data_source,
             solution_str,
             ground_truth,
@@ -30,6 +31,7 @@ def training_reward_func(
             kwargs.get("coordinates_pixel_square_size", 10),
             kwargs.get("extra_info"),
         )
+        return {'score': scores['score']}
     else:
         raise NotImplementedError
 
