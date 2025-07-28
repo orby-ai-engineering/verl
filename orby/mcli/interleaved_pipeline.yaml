@@ -66,7 +66,7 @@ command: |
 
   # Set to False as a single merged dataset with unified structure
   # is used for interleaved training.
-  export CLEAN_DATASET=True
+  export CLEAN_DATASET=False
 
   # Set GRPO parameters
   export REWARD_FN=training_reward_func
