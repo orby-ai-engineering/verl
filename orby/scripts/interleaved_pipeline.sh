@@ -267,7 +267,7 @@ eval_step() {
         trainer.n_gpus_per_node=8 \
         data.path=$eval_data_path \
         data.prompt_key=prompt \
-        data.batch_size=256 \
+        data.batch_size=32 \
         +data.max_prompt_length=7680 \
         +data.filter_overlong_prompts=false \
         data.n_samples=1 \
