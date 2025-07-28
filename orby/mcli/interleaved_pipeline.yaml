@@ -61,7 +61,7 @@ command: |
 
   # Set SFT parameters
   export ATTENTION_DROPOUT=0.0
-  export SFT_LR=1e-6
+  export SFT_LR=1e-5
   export SFT_CHECKPOINT_INTERVAL=100
 
   # Set to False as a single merged dataset with unified structure
