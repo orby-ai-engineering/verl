@@ -28,7 +28,7 @@ class UGroundRewardScorer:
         super().__init__()
         self.thinking_pattern = re.compile(r"<think>(.*?)</think>", re.DOTALL)
         self.answer_pattern = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
-        self.coordinate_pattern = re.compile(r"(\d*\.?\d+)\s+(\d*\.?\d+)")
+        self.coordinate_pattern = re.compile(r"click\((\d*\.?\d+)[,\s]+(\d*\.?\d+)\)")
 
     def _extract_coordinates(
         self, answer_str: str
@@ -100,7 +100,7 @@ class UGroundRewardScorer:
         coord_score = 1.0 if coordinates_correct else 0.0
 
         # Weight the scores (can be adjusted based on importance)
-        weights = {"format": 0.2, "coordinates": 0.8}
+        weights = {"format": 0.0, "coordinates": 1.0}
 
         overall_score = (
             weights["format"] * format_score + weights["coordinates"] * coord_score

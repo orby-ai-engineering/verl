@@ -29,7 +29,7 @@ command: |
   export LOCAL_DATA_DIR=$HOME/data
   export LOCAL_MODEL_DIR=$HOME/model
   export LOCAL_EVAL_DIR=$HOME/eval
-  export S3_CHECKPOINT_DIR=s3://orby-llm/interleaved/checkpoints/$EXPERIMENT_NAME
+  export S3_CHECKPOINT_DIR=s3://orby-llm/interleaved/experiments/$EXPERIMENT_NAME/checkpoints
 
   # This should contain the training data for all steps. For example,
   # if INTERLEAVED_STEP_NUM=2, then it should contain:
@@ -53,11 +53,20 @@ command: |
   export SFT_TRAIN_BATCH_SIZE=128
   export GRPO_MICRO_BATCH_SIZE_PER_GPU=1
   export GRPO_TRAIN_BATCH_SIZE=64
+  # For 72B model, set rollout batch size to 512.
   export ROLLOUT_BATCH_SIZE=1024
+
+  # For 72B model, set tensor model parallel size to 8.
+  export TENSOR_MODEL_PARALLEL_SIZE=1
 
   # Set SFT parameters
   export ATTENTION_DROPOUT=0.0
-  export SFT_LR=1e-5
+  export SFT_LR=1e-6
+  export SFT_CHECKPOINT_INTERVAL=100
+
+  # Set to False as a single merged dataset with unified structure
+  # is used for interleaved training.
+  export CLEAN_DATASET=False
 
   # Set GRPO parameters
   export REWARD_FN=training_reward_func
@@ -72,8 +81,11 @@ command: |
   export EVAL_REWARD_FN=eval_reward_func
   export EVAL_OUTPUT_FILE=$LOCAL_DATA_DIR/tmp_eval_output.parquet
   export LOCAL_EVAL_RESULT_FILE=$LOCAL_EVAL_DIR/results.parquet
-  export S3_EVAL_RESULT_DIR=s3://orby-llm/interleaved/eval/$EXPERIMENT_NAME
+  export S3_EVAL_RESULT_DIR=s3://orby-llm/interleaved/experiments/$EXPERIMENT_NAME/eval
   export S3_EVAL_RESULT_FILE=$S3_EVAL_RESULT_DIR/results.parquet
+
+  # For 72B model, set eval batch size to 32.
+  export EVAL_STEP_BATCH_SIZE=1024
 
   # Set difficulty filter parameters
   export MEDIUM_DIFFICULTY_FILTER_UPPER_BOUND=0.9
@@ -83,9 +95,9 @@ command: |
   export REWARD_SCORE_COLUMN="reward_score"
 
   # Set rollout parameters
-  export S3_ROLLOUT_OUTPUT_DIR=s3://orby-llm/interleaved/rollout/$EXPERIMENT_NAME
+  export S3_ROLLOUT_OUTPUT_DIR=s3://orby-llm/interleaved/experiments/$EXPERIMENT_NAME/rollout
   export N_SAMPLES=4
-  export TEMPERATURE=0.7
+  export TEMPERATURE=0.1
 
   # Init environment
   cd /workspace/verl
