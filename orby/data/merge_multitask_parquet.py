@@ -1,8 +1,15 @@
+"""This script merges parquet files of different structures into a single parquet file.
+
+Missing fields will be filled with NaN values. Also applies the format fix for subtask
+data so we can fix the issues offline before training.
+"""
+
 import datasets
 from datasets import Sequence, Image
 
 
 def fix_dataset_format_for_merge(dataset):
+    """Copied from orby/utils/dataset/sft_dataset.py"""
     if "images" in dataset.features:
         # Check if images are in Dataset 2 format (list of dicts with bytes/path)
         # Dataset subtask_direct_distill format: [{'bytes': binary, 'path': int32}]
@@ -44,12 +51,12 @@ def fix_dataset_format_for_merge(dataset):
 parquet_files = [
     "/root/subtask/osatlas_test_part_0000.parquet",
     "/root/subtask/osatlas_test_part_0001.parquet",
-    #"/root/subtask/osatlas_test_part_0006.parquet",
-    #"/root/subtask/osatlas_test_part_0007.parquet",
+    "/root/subtask/osatlas_test_part_0006.parquet",
+    "/root/subtask/osatlas_test_part_0007.parquet",
     "/root/subtask/test_part_0000.parquet",
     "/root/subtask/test_part_0001.parquet",
-    #"/root/subtask/test_part_0006.parquet",
-    #"/root/subtask/test_part_0007.parquet",
+    "/root/subtask/test_part_0006.parquet",
+    "/root/subtask/test_part_0007.parquet",
     "/root/subtask/subtask_test.parquet",
 ]
 dataframes = []
@@ -61,5 +68,5 @@ for parquet_file in parquet_files:
     print(dataframe)
 
 dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
-print('Final', dataframe)
+print("Final", dataframe)
 dataframe.to_pandas().to_parquet("/root/subtask/test.parquet", row_group_size=512)
