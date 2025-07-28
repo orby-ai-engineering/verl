@@ -490,13 +490,6 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
                 $HARD_DIFFICULTY_FILTER_UPPER_BOUND \
                 $HARD_DIFFICULTY_FILTER_LOWER_BOUND
 
-            # Cut the medium difficulty parquet in half; one for GRPO and one for SFT
-            python3 -m orby.trainer.cut_parquet \
-                data.path=$LOCAL_PER_STEP_GRPO_TRAIN_FILES \
-                data.output_path_1=$LOCAL_PER_STEP_GRPO_TRAIN_FILES \
-                data.output_path_2=$LOCAL_PER_STEP_SFT_TRAIN_FILES \
-                data.split_ratio=0.5
-
             # Upload dataset to S3; only make one call on node 0
             aws s3 cp --no-progress $LOCAL_PER_STEP_GRPO_TRAIN_FILES $S3_PER_STEP_GRPO_TRAIN_FILES
             aws s3 cp --no-progress $LOCAL_PER_STEP_SFT_TRAIN_FILES $S3_PER_STEP_SFT_TRAIN_FILES
