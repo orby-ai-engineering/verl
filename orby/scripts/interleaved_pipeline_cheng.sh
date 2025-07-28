@@ -557,38 +557,9 @@ for i in $(seq 0 $((INTERLEAVED_STEP_NUM - 1))); do
 
     # 4) Run SFT step
     echo "TOP LEVEL - Step 1.$i.6: running SFT ==============================================================="
-    export SFT_EXPERIMENT_NAME=${EXPERIMENT_NAME}_${i}_sft
-    export SFT_CHECKPOINT_DIR=$S3_CHECKPOINT_DIR/${i}/sft/
-
-    if aws s3 ls "$SFT_CHECKPOINT_DIR" >/dev/null 2>&1; then
-        echo "TOP LEVEL - Skip SFT step due to existing SFT checkpoint (resume)"
-    else
-        # Otherwise we run the SFT step
-        # Download the SFT training dataset on all nodes
-        aws s3 cp --no-progress $S3_PER_STEP_SFT_TRAIN_FILES $LOCAL_PER_STEP_SFT_TRAIN_FILES
-
-        sft_step $SFT_EXPERIMENT_NAME \
-            $LOCAL_GRPO_CHECKPOINT \
-            $SFT_TRAIN_BATCH_SIZE \
-            $LOCAL_PER_STEP_SFT_TRAIN_FILES \
-            $SHARED_VAL_FILES \
-            $SFT_CHECKPOINT_DIR \
-            $SFT_LR \
-            $ATTENTION_DROPOUT \
-            $SFT_MICRO_BATCH_SIZE_PER_GPU
-    fi
-
-    # Find and copy the SFT checkpoint with maximum steps
-    export MAX_STEPS_CHECKPOINT=$(find_max_step_checkpoint "$SFT_CHECKPOINT_DIR")
-    export STEP_DIR=$(extract_step_from_checkpoint_dir $MAX_STEPS_CHECKPOINT)
-    export LOCAL_SFT_CHECKPOINT=$LOCAL_MODEL_DIR/sft_${i}/$STEP_DIR
-    # Download the SFT checkpoint on all nodes
-    aws s3 cp --no-progress --recursive $MAX_STEPS_CHECKPOINT $LOCAL_SFT_CHECKPOINT
-
-    # evaluation
-    echo "TOP LEVEL - Step 1.$i.7: evaluating SFT checkpoint $i on node 0 ===================================="
-    run_on_node0_and_sync "sft_eval_$i" \
-        eval_step $SHARED_VAL_FILES $LOCAL_SFT_CHECKPOINT "${i}_sft"
+    # We skip the SFT step, so we copy the local GRPO checkpoint to the local SFT checkpoint
+    export LOCAL_SFT_CHECKPOINT=$LOCAL_GRPO_CHECKPOINT
+    echo "TOP LEVEL - Skipping SFT step"
 done
 
 # Final report
