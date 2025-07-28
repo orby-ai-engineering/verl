@@ -121,7 +121,7 @@ generate_rollout_data() {
             rollout.top_p=1.0 \
             rollout.prompt_length=7680 \
             rollout.response_length=512 \
-            rollout.tensor_model_parallel_size=1 \
+            rollout.tensor_model_parallel_size=$TENSOR_MODEL_PARALLEL_SIZE \
             rollout.gpu_memory_utilization=0.9 \
             rollout.max_num_batched_tokens=65536 \
             rollout.n=$n_samples \
@@ -159,6 +159,7 @@ sft_step() {
         data.prompt_key=prompt \
         data.response_key=response \
         +data.image_key=images \
+        +data.clean_dataset=$CLEAN_DATASET \
         +processor.use_fast=true \
         +processor.trust_remote_code=true \
         optim.lr=$sft_lr \
@@ -175,8 +176,8 @@ sft_step() {
         trainer.experiment_name=$experiment_name \
         trainer.logger=[console,wandb] \
         trainer.default_hdfs_dir=null \
-        +trainer.val_interval=100 \
-        +trainer.save_interval=100 \
+        +trainer.val_interval=$SFT_CHECKPOINT_INTERVAL \
+        +trainer.save_interval=$SFT_CHECKPOINT_INTERVAL \
         trainer.total_epochs=1 \
         ulysses_sequence_parallel_size=1 \
         use_remove_padding=false \
@@ -231,7 +232,7 @@ grpo_step() {
         actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
         actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
         actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=8192 \
-        actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
+        actor_rollout_ref.rollout.tensor_model_parallel_size=$TENSOR_MODEL_PARALLEL_SIZE \
         actor_rollout_ref.rollout.name=vllm \
         actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
         actor_rollout_ref.rollout.enable_chunked_prefill=False \
@@ -267,7 +268,7 @@ eval_step() {
         trainer.n_gpus_per_node=8 \
         data.path=$eval_data_path \
         data.prompt_key=prompt \
-        data.batch_size=1024 \
+        data.batch_size=$EVAL_STEP_BATCH_SIZE \
         +data.max_prompt_length=7680 \
         +data.filter_overlong_prompts=false \
         data.n_samples=1 \
@@ -277,7 +278,7 @@ eval_step() {
         rollout.top_p=1.0 \
         rollout.prompt_length=7680 \
         rollout.response_length=512 \
-        rollout.tensor_model_parallel_size=1 \
+        rollout.tensor_model_parallel_size=$TENSOR_MODEL_PARALLEL_SIZE \
         rollout.gpu_memory_utilization=0.9 \
         rollout.max_num_batched_tokens=65536 \
         +rollout.limit_images=3
@@ -350,7 +351,6 @@ function merge_checkpoint() {
 
     python3 orby/scripts/model_merger.py merge \
         --backend fsdp \
-        --hf_model_path Qwen/Qwen2.5-VL-7B-Instruct \
         --local_dir $max_steps_checkpoint/actor \
         --target_dir $max_steps_checkpoint/hf/
 }
