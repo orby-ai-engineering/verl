@@ -18,7 +18,7 @@ def training_reward_func(
             kwargs.get("use_gaussian"),
             kwargs.get("extra_info"),
         )
-        return {'score': scores['score']}
+        return {"score": scores["score"]}
     elif data_source in ["subtask_direct_distill"]:
         from orby.reward import subtask
 
@@ -31,7 +31,7 @@ def training_reward_func(
             kwargs.get("coordinates_pixel_square_size", 10),
             kwargs.get("extra_info"),
         )
-        return {'score': scores['score']}
+        return {"score": scores["score"]}
     else:
         raise NotImplementedError
 
