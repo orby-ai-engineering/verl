@@ -69,4 +69,8 @@ for parquet_file in parquet_files:
 
 dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
 print("Final", dataframe)
-dataframe.to_pandas().to_parquet("/root/subtask/test.parquet", row_group_size=512)
+
+# Sample to shuffle the dataset and reset the index from 0 to n-1.
+dataframe.to_pandas().sample(frac=1).reset_index(drop=True).to_parquet(
+    "/root/subtask/test.parquet", row_group_size=512
+)

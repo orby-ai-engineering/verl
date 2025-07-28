@@ -351,6 +351,7 @@ function merge_checkpoint() {
 
     python3 orby/scripts/model_merger.py merge \
         --backend fsdp \
+        --hf_model_path $MODEL_NAME \
         --local_dir $max_steps_checkpoint/actor \
         --target_dir $max_steps_checkpoint/hf/
 }
