@@ -198,22 +198,52 @@ def generate_html_table(df, output_file, max_rows=50, image_column=None):
                     image_base64_item = '<image src="' + image_base64_item + '">'
                     prompt = prompt.replace(IMAGE_LOCATOR, image_base64_item, 1)
 
-        # Prompt column
+        # Prompt column with images.
         html_content += '<td class="prompt-cell">'
         html_content += prompt
         html_content += "</td>"
 
-        # Other fields column
         html_content += '<td class="other-cell">'
+
+        # Show these fields first for easier reading.
+        for col in [
+            "data_source",
+            "ability",
+            "reward_score",
+            "response",
+            "predictions",
+        ]:
+            if col not in row:
+                continue
+            value = row[col]
+            if value is None or (isinstance(value, float) and np.isnan(value)):
+                continue
+            formatted_value = format_field_value(value)
+            html_content += (
+                f"<strong>{col}:</strong> <pre>{formatted_value}</pre><br><br>"
+            )
+
+        used_fields = [
+            "data_source",
+            "ability",
+            "reward_score",
+            "response",
+            "predictions",
+            "prompt",
+            image_column,
+        ]
+
+        # Other other fields if any are left.
         for col in df.columns:
-            if col not in ["prompt", image_column]:
-                value = row[col]
-                if value is None or (isinstance(value, float) and np.isnan(value)):
-                    continue
-                formatted_value = format_field_value(value)
-                html_content += (
-                    f"<strong>{col}:</strong> <pre>{formatted_value}</pre><br><br>"
-                )
+            if col in used_fields:
+                continue
+            value = row[col]
+            if value is None or (isinstance(value, float) and np.isnan(value)):
+                continue
+            formatted_value = format_field_value(value)
+            html_content += (
+                f"<strong>{col}:</strong> <pre>{formatted_value}</pre><br><br>"
+            )
         html_content += "</td>"
 
         html_content += "</tr>"
