@@ -21,7 +21,8 @@ command: |
   export MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
   # Set this if you want to skip the initial SFT step and start from a checkpoint
   export BASE_SFT_CHECKPOINT=
-  export DO_SFT_STEPS=True
+  # Set to false to skip the SFT steps (but not the initial SFT step)
+  export DO_SFT_STEPS=true
 
   # Set the number of steps to interleave. Make sure the data directory contains the data for all steps.
   export INTERLEAVED_STEP_NUM=1
@@ -129,8 +130,8 @@ command: |
 
   # Run interleaved pipeline
   echo "TOP LEVEL - Now starting the interleaved training pipeline at orby/scripts/interleaved_pipeline.sh"
-  if [ "$DO_SFT_STEPS" = "True" ]; then
+  if [ "$DO_SFT_STEPS" = "true" ]; then
     bash orby/scripts/interleaved_pipeline.sh
   else
-    bash orby/scripts/interleaved_pipeline_no_sft_step.sh
+    bash orby/scripts/interleaved_pipeline_no_sft.sh
   fi
