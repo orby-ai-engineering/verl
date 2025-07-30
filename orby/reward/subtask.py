@@ -13,8 +13,9 @@ from orby.utils.action_utils import get_action_info, extract_content_by_tags
 class UISubtaskRewardScorer:
     """Reward scorer for UI Subtask task."""
 
-    def __init__(self):
+    def __init__(self, binarize_text_similarity_score: bool = True):
         super().__init__()
+        self.binarize_text_similarity_score = binarize_text_similarity_score
         self.reward_model_weights = {
             "format": 0.1,
             "should_end": 0.3,
@@ -46,7 +47,10 @@ class UISubtaskRewardScorer:
         similarity = SequenceMatcher(
             None, pred_content.lower(), gt_content.lower()
         ).ratio()
-        return similarity >= threshold
+        if self.binarize_text_similarity_score:
+            return similarity >= threshold
+        else:
+            return similarity
 
     def _score_reward_model(
         self, prediction: str, ground_truth: dict, detailed: bool
@@ -456,6 +460,7 @@ def compute_score(
     coordinates_metric: Literal["gaussian", "pixel_square", "bbox"],
     coordinates_gaussian_sigma: float,
     coordinates_pixel_square_size: int,
+    binarize_text_similarity_score: bool = True,
 ) -> dict:
     """Compute score for a single prediction.
 
@@ -472,7 +477,9 @@ def compute_score(
         coordinates_pixel_square_size (int): width and height of the square bbox around the
             ground truth pixel for pixel square distance metric
     """
-    scorer = UISubtaskRewardScorer()
+    scorer = UISubtaskRewardScorer(
+        binarize_text_similarity_score=binarize_text_similarity_score
+    )
     result = scorer.score(
         prediction,
         ground_truth,
@@ -491,6 +498,7 @@ def training_reward_func(
     coordinates_metric="gaussian",
     coordinates_gaussian_sigma=5,
     coordinates_pixel_square_size=10,
+    binarize_text_similarity_score=True,
     extra_info=None,
 ):
     if data_source == "subtask_direct_distill":
@@ -503,6 +511,7 @@ def training_reward_func(
             coordinates_metric=coordinates_metric,
             coordinates_gaussian_sigma=coordinates_gaussian_sigma,
             coordinates_pixel_square_size=coordinates_pixel_square_size,
+            binarize_text_similarity_score=binarize_text_similarity_score,
         )
     else:
         raise NotImplementedError
@@ -515,6 +524,7 @@ def eval_reward_func(
     coordinates_metric="gaussian",
     coordinates_gaussian_sigma=5,
     coordinates_pixel_square_size=10,
+    binarize_text_similarity_score=True,
     extra_info=None,
 ):
     if data_source == "subtask_direct_distill":
@@ -527,6 +537,7 @@ def eval_reward_func(
             coordinates_metric=coordinates_metric,
             coordinates_gaussian_sigma=coordinates_gaussian_sigma,
             coordinates_pixel_square_size=coordinates_pixel_square_size,
+            binarize_text_similarity_score=binarize_text_similarity_score,
         )
     else:
         raise NotImplementedError

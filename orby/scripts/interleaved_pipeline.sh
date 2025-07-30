@@ -296,7 +296,8 @@ eval_step() {
         custom_reward_function.name=$EVAL_REWARD_FN \
         +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \
         +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
-        +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE
+        +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE \
+        +custom_reward_function.reward_kwargs.binarize_text_similarity_score=$BINARIZE_TEXT_SIMILARITY_SCORE
 }
 
 filter_step() {
@@ -320,7 +321,8 @@ filter_step() {
         custom_reward_function.name=$REWARD_FN \
         +custom_reward_function.reward_kwargs.coordinates_metric=$COORDINATES_METRIC \
         +custom_reward_function.reward_kwargs.coordinates_gaussian_sigma=$COORDINATES_GAUSSIAN_SIGMA \
-        +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE
+        +custom_reward_function.reward_kwargs.coordinates_pixel_square_size=$COORDINATES_PIXEL_SQUARE_SIZE \
+        +custom_reward_function.reward_kwargs.binarize_text_similarity_score=$BINARIZE_TEXT_SIMILARITY_SCORE
 
     echo "TOP LEVEL - Step 1.$i.1.1: filtering by score ================================================="
 
