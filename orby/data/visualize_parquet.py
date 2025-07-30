@@ -1,10 +1,21 @@
+"""
+Visualize parquet file as HTML table.
+
+It will read the parquet file from s3 with only the max_rows rows.
+
+Usage:
+python visualize_parquet.py \
+    --parquet_file /path/to/parquet_file_on_s3 \
+    --output_file /path/to/local_output_file.html \
+    --max_rows 10 \
+    --image_column images
+"""
+
 import os
 from io import BytesIO
 import pandas as pd
 import argparse
 import base64
-from PIL import Image
-import io
 import json
 from pathlib import Path
 import pyarrow.parquet as pq
