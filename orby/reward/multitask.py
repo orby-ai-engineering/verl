@@ -29,6 +29,7 @@ def training_reward_func(
             kwargs.get("coordinates_metric", "gaussian"),
             kwargs.get("coordinates_gaussian_sigma", 5),
             kwargs.get("coordinates_pixel_square_size", 10),
+            kwargs.get("binarize_text_similarity_score", True),
             kwargs.get("extra_info"),
         )
         return {"score": scores["score"]}
@@ -63,6 +64,7 @@ def eval_reward_func(
             kwargs.get("coordinates_metric", "gaussian"),
             kwargs.get("coordinates_gaussian_sigma", 5),
             kwargs.get("coordinates_pixel_square_size", 10),
+            kwargs.get("binarize_text_similarity_score", True),
             kwargs.get("extra_info"),
         )
     else:
