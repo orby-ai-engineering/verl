@@ -133,5 +133,5 @@ command: |
   if [ "$DO_SFT_STEPS" = "true" ]; then
     bash orby/scripts/interleaved_pipeline.sh
   else
-    bash orby/scripts/interleaved_pipeline_no_sft.sh
+    bash orby/scripts/interleaved_pipeline_no_sft_step.sh
   fi
