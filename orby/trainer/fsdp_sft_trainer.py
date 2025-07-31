@@ -346,7 +346,7 @@ class FSDPSFTTrainer:
 
             if self.config.data.image_key is not None:
                 kwargs = {}
-                if self.config.model.get("qwen_attention_dropout", None):
+                if self.config.model.get("qwen_attention_dropout", None) is not None:
                     kwargs.update(
                         {
                             "attention_dropout": self.config.model.qwen_attention_dropout,
@@ -358,6 +358,9 @@ class FSDPSFTTrainer:
                     attn_implementation="sdpa",
                     **kwargs,
                 )
+                # freeze the vision encoder
+                model.visual.requires_grad_(False)
+                model.visual.eval()
             else:
                 model = AutoModelForCausalLM.from_pretrained(
                     local_model_path,
@@ -445,7 +448,7 @@ class FSDPSFTTrainer:
         log_gpu_memory_usage("After FSDP wrapping", logger=logger)
 
         self.optimizer = optim.AdamW(
-            self.fsdp_model.parameters(),
+            [p for p in self.fsdp_model.parameters() if p.requires_grad],
             lr=self.config.optim.lr,
             betas=self.config.optim.betas,
             weight_decay=self.config.optim.weight_decay,
