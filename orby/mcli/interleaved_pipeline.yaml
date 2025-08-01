@@ -11,7 +11,7 @@ integrations:
 
 compute:
   gpus: 64 # Number of GPUs to use
-  cluster: r8z13p2
+  cluster: r18z1p1
   gpu_type: h100_80gb
 
 command: |
